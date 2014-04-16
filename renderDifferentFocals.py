@@ -13,12 +13,11 @@ class RenderDifferentFocals( tdOptionsWindow.td_OptionsWindow ):
         self.title      = 'Render Different Focals'
         self.window     = 'td_renderDifferentFocals'
         self.actionName = 'Render and Close'
-        self.userLogin  = os.environ['USER']
 
 
     def helpMenuCmd(self, *args):
         """Open a browser to the online doc"""
-        cmds.launch(webPage="http://td.macguff.fr/doc")
+        cmds.launch(webPage="http://www.google.com")
 
 
     def editMenuResetCmd(self, *args):
@@ -53,9 +52,13 @@ class RenderDifferentFocals( tdOptionsWindow.td_OptionsWindow ):
                 for focal in self.focals:
                     cmds.currentTime( key, edit=True )
                     cmds.setAttr( getShapes(camera)[0] + '.focalLength', focal )
-                    renderPath = '/u/%s/render/<Camera>_key%s_focal%s' % ( self.userLogin, int(key), focal )
-                    cmds.setAttr('defaultRenderGlobals.imageFilePrefix', renderPath, type="string");
-                    cmds.render( camera )
+                    tempPath = cmds.Mayatomr( preview=True, cam=camera )
+                    extension = os.path.splitext( tempPath )[1]
+                    finalPath = '/Desktop/render/%s_key%s_focal%s%s' % ( camera.replace(':', '_'), int(key), focal, extension )
+                    shutil.move( tempPath, finalPath )
+                    
+
+                    
 
 
             
