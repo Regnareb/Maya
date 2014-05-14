@@ -1,7 +1,8 @@
+"""
+Create a button that flashes green when you click it, before going back to its normal color
+"""
 
-""" Create a button that flash green when you click it, before going back to its normal color """
-
-
+import time
 import pymel.core as pmc
 
 def gradient(*args):
