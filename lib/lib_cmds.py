@@ -1,5 +1,13 @@
-import pprint, inspect, traceback
+import maya.mel as mel
 import maya.cmds as cmds
+
+
+def getNewNodesCreated(_function):
+    """ Return the new nodes created after the execution of a function """
+    before = cmds.ls()
+    eval(_function)
+    after = cmds.ls()
+    return list(set(after) - set(before))
 
 
 def getNumberCVs(curve):
@@ -23,13 +31,18 @@ def getTransforms(shapeList, fullPath=True):
     return transforms
 
 
-
 def getTypeNode(type, nodeList):
     """ Return all the nodes of a specific type from a list of node """
     filter = cmds.itemFilter( byType=type )
     return cmds.lsThroughFilter(filter, item=nodeList)
 
 
+def getShapes( xform ):
+    """Return the shapes of a node in argument"""
+    shapes = []
+    if cmds.nodeType( xform ) == 'transform':
+        shapes = cmds.listRelatives( xform, fullPath=True, shapes=True)
+    return shapes
 
 
 def logException(type, value, trace):
@@ -38,3 +51,15 @@ def logException(type, value, trace):
     print(pprint.pformat(inspect.currentframe().f_builtins))
     print(pprint.pformat(inspect.currentframe().f_globals))
     print("\n\n%s"%(''.join(traceback.format_exception(type, value, trace))))
+
+
+def undo_chunk( method ):
+    """A decorator that create a undo chunk so that everything done in the method will be undone with only one Undo"""
+    def undoed( *args, **kw ):
+        cmds.undoInfo( openChunk=True )
+        result = method( *args, **kw )
+        cmds.undoInfo( closeChunk=True )
+    return undoed
+    
+    
+    
