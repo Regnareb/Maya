@@ -2,7 +2,7 @@ import maya.mel as mel
 import maya.cmds as cmds
 
 
-def getNewNodesCreated( _function ):
+def getNewNodesCreated(_function):
     """ Return the new nodes created after the execution of a function """
     before = cmds.ls()
     eval(_function)
@@ -10,7 +10,7 @@ def getNewNodesCreated( _function ):
     return list(set(after) - set(before))
 
 
-def getNumberCVs( curve ):
+def getNumberCVs(curve):
     """Return the number of CVs of an input curve"""
     numSpans = cmds.getAttr ( curve + ".spans" )
     degree   = cmds.getAttr ( curve + ".degree" )
@@ -21,7 +21,7 @@ def getNumberCVs( curve ):
     return numCVs
 
 
-def getNurbsCVs( surface ):
+def getNurbsCVs(surface):
     """Return the number of CVs in U and V of the NURBS surface in argument"""
     numSpansU = cmds.getAttr ( surface + ".spansU" )
     degreeU   = cmds.getAttr ( surface + ".degreeU" )
@@ -40,7 +40,7 @@ def getNurbsCVs( surface ):
     return numCVsU, numCVsV
 
 
-def getTransforms( shapeList, fullPath=True ):
+def getTransforms(shapeList, fullPath=True):
     """Return all the transforms of the list of shapes in argument"""
     transforms = []
     for node in shapeList:
@@ -50,7 +50,7 @@ def getTransforms( shapeList, fullPath=True ):
     return transforms
 
 
-def getShapes( xform ):
+def getShapes(xform):
     """Return the shapes of a node in argument"""
     shapes = []
     if cmds.nodeType( xform ) == 'transform':
@@ -58,13 +58,13 @@ def getShapes( xform ):
     return shapes
 
 
-def getTypeNode( type, nodeList ):
+def getTypeNode(type, nodeList):
     """ Return all the nodes of a specific type from a list of node """
     filter = cmds.itemFilter( byType=type )
     return cmds.lsThroughFilter(filter, item=nodeList)
 
 
-def getFirstSelection( filter='' ):
+def getFirstSelection(filter=''):
     """Get the first item in the selection"""
     selection = cmds.ls(selection=True)
     if filter and selection:
@@ -80,7 +80,7 @@ def getFirstSelection( filter='' ):
 
 
 
-def undoChunk( method ):
+def undoChunk(method):
     """A decorator that create a undo chunk so that everything done in the method will be undone with only one Undo"""
     def undoed( *args, **kw ):
         try:
