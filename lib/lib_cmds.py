@@ -80,6 +80,24 @@ def getFirstSelection(filter=''):
 
 
 
+
+
+
+
+def reSelect(method):
+    """A decorator that reselect the elements selected prior the execution of the method"""
+    def selected( *args, **kw ):
+        try:
+            sel = cmds.ls( sl=True )
+            result = method( *args, **kw )
+        except Exception as err:
+            print err
+        finally:
+            cmds.select( sel  )
+    return selected
+
+
+
 def undoChunk(method):
     """A decorator that create a undo chunk so that everything done in the method will be undone with only one Undo"""
     def undoed( *args, **kw ):
