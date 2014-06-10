@@ -87,15 +87,17 @@ def getFirstSelection(filter=''):
 def reSelect(method):
     """A decorator that reselect the elements selected prior the execution of the method"""
     def selected( *args, **kw ):
-        try:
-            sel = cmds.ls( sl=True )
-            result = method( *args, **kw )
-        except Exception as err:
-            print err
-        finally:
-            cmds.select( sel  )
+        sel    = cmds.ls( sl=True )
+        result = method( *args, **kw )
+        cmds.select( sel )
     return selected
 
+
+class reselectContext(object):
+    def __enter__(self):
+        self.selectionList = cmds.ls( sl=True )
+    def __exit__(self, *exc_info):
+        cmds.select( self.selectionList )
 
 
 def undoChunk(method):
@@ -109,7 +111,6 @@ def undoChunk(method):
         finally:
             cmds.undoInfo( closeChunk=True )
     return undoed
-
 
 
 
