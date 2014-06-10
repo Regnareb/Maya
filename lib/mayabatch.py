@@ -90,10 +90,10 @@ class Mayabatch(threading.Thread):
 
 
     def sendMail(self):
-        user     = os.environ['USER']
-        sender   = user + '@illum-mg.fr'
-        subject  = '%s batch result' % (self.mailEnabled [0])
-        message  = ''
+        user        = os.environ['USER']
+        destination = user + '@domain.com'
+        subject     = '%s batch result' % (self.mailEnabled [0])
+        message     = ''
         message += '%s<br />' % (self.mailEnabled [1])
         if self.exitcode !=0:
             message += '<b style="color:red">Crashed: </b><br />' + self.err.replace('\n', '<br />') + '<br /><br /><b style="color:red">Log:</b><br /> ' + self.out.replace('\n', '<br />') + '<br />'
@@ -101,7 +101,7 @@ class Mayabatch(threading.Thread):
             message += '<b style="color:green">Success:</b> ' + self.result.replace('\n', '<br />') + '<br />'
 
         if self.mailOnlyCrash and self.exitcode !=0 or not self.mailOnlyCrash:
-            tdMail.sendHtmlMail('username@domain.com', [sender], subject, message)
+            tdMail.sendHtmlMail('username@domain.com', [destination], subject, message)
 
 
 
