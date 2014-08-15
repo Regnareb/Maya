@@ -1,0 +1,44 @@
+// Call td_convertShaderTo(node, type) to switch the shader to another one
+// Example: td_convertShaderTo("lambert5", "blinn")
+// Call td_convertAllToBlinn() to convert all materials to Blinn (will not convert "lambert1" and Blinn materials)
+
+
+proc string td_getMaterialInfo( string $shaderNode ) {
+    string $connections[] = `listConnections ($shaderNode+".message")`;
+    for ($item in $connections)
+        if (`objectType $item` == "materialInfo")
+            return $item;
+    return "";
+}
+
+
+proc td_disconnectMaterialInfo( string $shaderNode, string $newShaderNode ) {
+    $materialInfoNode = td_getMaterialInfo($shaderNode);
+    if ($materialInfoNode == "") {
+        // The materialInfoNode doesn't exist... fail silently.
+        return;
+    }
+    disconnectAttr ($shaderNode+".message") ($materialInfoNode+".material");
+}
+
+
+global proc td_convertShaderTo(string $shaderNode, string $shaderType) {
+    $replaceNode = `createNode $shaderType`;
+    td_disconnectMaterialInfo($shaderNode, $replaceNode);
+    replaceNode $shaderNode $replaceNode;
+    showEditor $replaceNode;
+    delete $shaderNode;
+    rename $replaceNode $shaderNode;
+}
+
+
+global proc td_convertAllToBlinn() {
+    string $allShaders[] = `ls -type "lambert"`;
+    string $allBlinns[] = `ls -type "blinn"`;
+    $allShaders = stringArrayRemoveExact($allBlinns, $allShaders);
+    $allShaders = stringArrayRemoveExact({"lambert1"}, $allShaders);
+
+    for ($shader in $allShaders) {
+        td_convertShaderTo($shader, "blinn");
+    }
+}
