@@ -1,6 +1,6 @@
 import timeit
 num = 50
-lis = cmds.ls(lockedNodes=True) 
+lis = cmds.ls() 
 
 
 # cmds.findType(lis, type='reference')
