@@ -10,7 +10,7 @@ print timeit.timeit(s, number=num)
 
 s = """
 import maya.cmds as cmds
-cmds.ls(rn=True)
+cmds.ls(referencedNodes=True)
 """ 
 print timeit.timeit(s, number=num)
 
