@@ -1,6 +1,11 @@
 import timeit
 num = 50
-lis = cmds.ls() 
+lis = cmds.ls(lockedNodes=True) 
+
+
+# cmds.findType(lis, type='reference')
+# Forget about it
+
 
 s = """
 import maya.cmds as cmds
@@ -26,31 +31,50 @@ print timeit.timeit(s, number=num)
 s = """
 import maya.cmds as cmds
 lis = %s
-listed = cmds.ls(type='reference')
-[i for i in lis if i not in listed]
+toRemove = cmds.ls(lis, type='reference')
+[i for i in lis if i not in toRemove]
 """ % lis
 print timeit.timeit(s, number=num)
 
 s = """
 import maya.cmds as cmds
 lis = %s
-listed = cmds.ls(type='reference')
-list(set(lis) - set(listed))
+toRemove = cmds.ls(lis, type='reference')
+list(set(lis) - set(toRemove))
+""" % lis
+print timeit.timeit(s, number=num)
+
+s = """
+import maya.cmds as cmds
+lis = %s
+toRemove = cmds.ls(type='reference')
+[i for i in lis if i not in toRemove]
+""" % lis
+print timeit.timeit(s, number=num)
+
+s = """
+import maya.cmds as cmds
+lis = %s
+toRemove = cmds.ls(type='reference')
+list(set(lis) - set(toRemove))
 """ % lis
 print timeit.timeit(s, number=num)
 
 
-
 # Results on small list:
-# 1.02980017662
-# 0.534548997879
-# 0.28243803978
-# 0.351180076599
-# 0.338052988052
+# 1.03518795967
+# 0.559606075287
+# 0.295418977737
+# 0.110281944275
+# 0.0975658893585
+# 0.45898103714
+# 0.444609880447
 
 # Results on huge list:
-# 125.933917999
-# 70.3589739799
-# 38.8933990002
-# 2.59962010384
-# 0.795596122742
+# 126.594508886
+# 73.218061924
+# 41.0703258514
+# 16.4379661083
+# 14.49990201
+# 2.75426411629
+# 0.860762119293
