@@ -2,11 +2,10 @@ import re
 import os
 import time
 import pickle
-import maya.mel as mel
-import maya.cmds as cmds
 import logging
 from collections import Iterable
-
+import maya.mel as mel
+import maya.cmds as cmds
 logger = logging.getLogger(__name__)
 
 
@@ -69,16 +68,16 @@ def saveAsCopy(fileName='', path='', prefix='', suffix=''):
     return filePath
 
 
-def export(exportList=None, fileName='', path='', prefix='', suffix=''):
-    """ Export only the selection if it is passed as argument or the complete scene with references """
+def export(exportList=None, fileName='', path='', prefix='', suffix='', format='mayaAscii'):
+    """ Export only the selection if it is passed as argument or the complete scene with references (mayaAscii/mayaBinary/OBJ"""
     if not fileName:
-        fileName = os.path.basename(cmds.file(query=True, sceneName=True))
+        fileName = os.path.basename(cmds.file(query=True, sceneName=True)) or 'nosave' # Change to python temp folder
     filePath = formatPath(fileName, path, prefix, suffix)
     if exportList:
         cmds.select(exportList, noExpand=True)
     # Export references only if is on Export All mode
-    cmds.file(filePath, force=True, options="v=0;", type="mayaAscii", preserveReferences=not bool(exportList), exportUnloadedReferences=not bool(exportList), exportSelected=bool(exportList), exportAll=not bool(exportList), shader=True, channels=True, constructionHistory=True, constraints=True, expressions=True)
-    return filePath
+    finalPath = cmds.file(filePath, force=True, options="v=0;", type=format, preserveReferences=not bool(exportList), exportUnloadedReferences=not bool(exportList), exportSelected=bool(exportList), exportAll=not bool(exportList), shader=True, channels=True, constructionHistory=True, constraints=True, expressions=True)
+    return finalPath
 
 
 def getNumberCVs(curve):
@@ -111,6 +110,17 @@ def getNurbsCVs(surface):
     return numCVsU, numCVsV
 
 
+def getTransform(shape, fullPath=True):
+    """Return the transform of the shape in argument"""
+    transforms = ''
+    if not isinstance(shape, basestring):
+        logger.error('Input not valid. Expecting a string shape, got "%s": %s' % (type(shape).__name__, shape))
+    elif 'transform' != cmds.nodeType(shape):
+        transforms = cmds.listRelatives(shape, fullPath=fullPath, parent=True)
+        transform = getFirstItem(transforms, '')
+    return transform
+
+
 def getTransforms(shapeList, fullPath=True):
     """Return all the transforms of the list of shapes in argument"""
     transforms = []
@@ -119,17 +129,6 @@ def getTransforms(shapeList, fullPath=True):
         transforms.append(parent)
     transforms = filter(bool, transforms)
     return transforms
-
-
-def getTransform(shape, fullPath=True):
-    """Return the transform of the shape in argument"""
-    transforms = ''
-    if not isinstance(shape, basestring):
-        logger.error('Input not valid. Expecting a string shape, got "%s": %s' % (type(shape).__name__, shape))
-    elif 'transform' != cmds.nodeType(shape):
-        transforms = cmds.listRelatives(shape, fullPath=fullPath, parent=True)
-        transformd = getFirstItem(transforms, '')
-    return transform
 
 
 def getShapes(xform, fullPath=True):
@@ -195,29 +194,36 @@ def getEmptyGroups():
 def getMaterialFromSG(shadingGroup):
     """Returns the Material node linked to the specified Shading Group node"""
     if cmds.nodeType(shadingGroup) == 'shadingEngine' and cmds.connectionInfo(shadingGroup + '.surfaceShader', isDestination=True):
-        return cmds.connectionInfo(shadingGroup + '.surfaceShader', sourceFromDestination=True).split('.')[0]
+        return cmds.connectionInfo(shadingGroup + '.surfaceShader', sourceFromDestination=True).split('.')[0] # Faster than cmds.listConnections(shader, type="lambert")
     return ''
+
+
+def getSGsFromMaterial(shader):
+    if cmds.ls(shader, materials=True):
+        nodes = [i.split('.')[0] for i in cmds.connectionInfo(shader +'.outColor', destinationFromSource=True)]  # Faster than cmds.listConnections(shader, type="shadingEngine")
+        shadingGroups = [i for i in nodes if cmds.nodeType(i) == 'shadingEngine']
+        return shadingGroups
+    return []
 
 
 def getSGsFromShape(shape):
     """Return all the Shading Groups connected to the shape"""
-    shadingEngines = cmds.listConnections(shape, destination=True, source=False, plugs=False, type="shadingEngine")
+    shadingEngines = cmds.listSets(object=shape, type=1, extendToShape=True) # Faster than cmds.listConnections(shape, destination=True, source=False, plugs=False, type="shadingEngine")
     return list(set(shadingEngines)) if shadingEngines else []
 
 
-def transferMaterials(shape, toAssign):
+def getShaderAssignation(shader):
+    shadingGroups = getSGsFromMaterial(shader) # Add checks?
+    if shadingGroups:
+        return cmds.sets(shadingGroups, query=True)
+    return []
+
+
+
+def transferMaterials(shape, toAssign, worldSpace=True):
     """Transfer materials assignation (object and faces) to a list of another objects"""
-    shape = getFirstItem(getShapes(shape)) or shape
-    shadingGroups = getSGsFromShape(shape)
-    for sg in shadingGroups:
-        assignation = cmds.sets(sg, query=True)
-        assignationFinal = []
-        for u in toAssign:
-            if not cmds.polyCompare(shape, u):
-                assignationFinal = assignationFinal + ([i.replace(transform, u) for i in assignation if transform in i])
-            else:
-                logger.warning('The mesh %s do not share the same topology with %s. Skipped' % (u, shape))
-        cmds.sets(assignationFinal, forceElement=sg, edit=True)
+    for mesh in toAssign:
+        cmds.transferShadingSets(shape, mesh, sampleSpace=worldSpace)
 
 
 def copyUV(object, toAssign):
@@ -283,14 +289,48 @@ def getCameraViewport(viewport):
 
 
 def loadPlugin(plugin):
-    cmds.loadPlugin(plugin, quiet=True)
+    """Load the plugin specified in argument"""
+    plugMethod = {'Mayatomr': loadMayatomr, 'Turtle': loadTurtle}
+    if plugin in plugMethod:
+        plugMethod[plugin]()
+    else:
+        cmds.loadPlugin(plugin, quiet=True)
     pluginList = cmds.pluginInfo(query=True, listPlugins=True)
     if plugin in pluginList:
         logger.info("Plugin %s correctly loaded" % plugin)
         return True
     else:
-        logger.error("Couldn't load plugin: ", plugin)
+        logger.error("Couldn't load plugin: " % plugin)
         return False
+
+
+def loadMayatomr():
+    lockedNodes = cmds.ls(lockedNodes=True)
+    toRemove = cmds.ls(referencedNodes=True) + cmds.ls(type='reference')
+    lockedNodes = list(set(lockedNodes) - set(toRemove))
+    try:
+        if lockedNodes:
+            cmds.lockNode(lockedNodes, lock=False)
+        cmds.loadPlugin('Mayatomr', quiet=True)
+        if lockedNodes:
+            cmds.lockNode(lockedNodes, lock=True)
+        return True
+    except RuntimeError, e:
+        logger.error(e)
+        return False
+
+
+def loadTurtle():
+    cmds.loadPlugin('Turtle', quiet=True)
+    turtleNodes = {'ilrUIOptionsNode': 'TurtleUIOptions',
+                   'ilrBakeLayerManager': 'TurtleBakeLayerManager',
+                   'ilrBakeLayer': 'TurtleDefaultBakeLayer',
+                   'ilrOptionsNode': 'TurtleRenderOptions'}
+    for nodeType, nodeName in turtleNodes.iteritems():
+        if not cmds.objExists(nodeName):
+            cmds.createNode(nodeType, name=nodeName)
+
+
 
 
 
@@ -308,7 +348,6 @@ def getFirstItem(iterable, default=None):
             return item
     return default
 
-
 def flatten(coll):
     """Flatten a list while keeping strings"""
     for i in coll:
@@ -318,8 +357,19 @@ def flatten(coll):
             else:
                 yield i
 
-
-
+def string2bool(string, strict=True):
+    """Convert a string to its boolean value.
+    The strict argument keep the string if neither True/False are found
+    """
+    if strict:
+        return string == "True"
+    else:
+        if string == 'True':
+            return False
+        elif string == 'False':
+            return True
+        else:
+            return string
 
 
 
@@ -377,6 +427,3 @@ def withmany(method):
             yield method(foo)
     method.many = many
     return method
-
-
-
