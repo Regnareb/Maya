@@ -1,0 +1,28 @@
+
+//--- Force Auto load of plugins to False
+string $pluginList[] = `pluginInfo -query -listPlugins`;
+for ($plugin in $pluginList) {
+    pluginInfo -edit -autoload false $plugin;
+}
+
+optionVar 
+-iv "isIncrementalSaveEnabled" 1
+-iv "RecentBackupsMaxSize" 10 
+-iv "RecentFilesMaxSize" 10
+-iv "RecentProjectsMaxSize" 10
+-iv "displayViewportGradient" 1
+-iv "loadDynamics" 0
+-iv "loadUrchin" 0
+-iv "maxTextureResolution" 1024
+-iv "undoIsInfinite" 1
+-iv "useSaveScenePanelConfig" 0
+-iv "useScenePanelConfig" 0
+-iv "displayNewFeatureHighlights" 0;
+
+undoInfo -state on -infinity on;
+
+
+if (!`about -batch`) {
+    catch(`commandPort -n ":7001" -noreturn -sourceType "mel"`);
+    catch(`commandPort -n ":7002" -noreturn -sourceType "python"`);
+}
