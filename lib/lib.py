@@ -1,6 +1,7 @@
 import re
 import os
 import time
+import errno
 import pickle
 import logging
 from collections import Iterable
@@ -38,11 +39,6 @@ def getShaders(listMeshes):
     return cmds.ls(cmds.listConnections(shadingGrps), materials=1)
 
 
-def stripShaderName(name):
-    """ Return only the name of the shader """
-    return re.search("_(.*?)_", name).group(0).strip('_')
-
-
 def formatPath(fileName, path='', prefix='', suffix=''):
     """ Create a complete path with a filename, a path and prefixes/suffixes
     /path/prefix_filename_suffix.ext"""
@@ -68,13 +64,15 @@ def saveAsCopy(fileName='', path='', prefix='', suffix=''):
     return filePath
 
 
-def export(exportList=None, fileName='', path='', prefix='', suffix='', format='mayaAscii'):
-    """ Export only the selection if it is passed as argument or the complete scene with references (mayaAscii/mayaBinary/OBJ"""
+def export(exportList=None, fileName='', path='', prefix='', suffix='', format=''):
+    """ Export only the selection if it is passed as argument or the complete scene with references"""
     if not fileName:
-        fileName = os.path.basename(cmds.file(query=True, sceneName=True)) or 'nosave' # Change to python temp folder
+        fileName = os.path.basename(cmds.file(query=True, sceneName=True)) or 'nosave'
     filePath = formatPath(fileName, path, prefix, suffix)
     if exportList:
         cmds.select(exportList, noExpand=True)
+    if not format:
+        format = getFirstItem(cmds.file(type=True, query=True)) or 'mayaAscii'
     # Export references only if is on Export All mode
     finalPath = cmds.file(filePath, force=True, options="v=0;", type=format, preserveReferences=not bool(exportList), exportUnloadedReferences=not bool(exportList), exportSelected=bool(exportList), exportAll=not bool(exportList), shader=True, channels=True, constructionHistory=True, constraints=True, expressions=True)
     return finalPath
@@ -109,6 +107,14 @@ def getNurbsCVs(surface):
         numCVsV -= degreeV
     return numCVsU, numCVsV
 
+def getUDIM(shapes):
+    shapesUV = cmds.polyListComponentConversion(shapes, fromFace=True, toUV=True)
+    uvCoord = cmds.polyEditUV(shapesUV, q=True)
+    Umin = int(min(uvCoord[0::2]))
+    Vmin = int(min(uvCoord[1::2]))
+    return [Umin, Vmin]
+
+
 
 def getTransform(shape, fullPath=True):
     """Return the transform of the shape in argument"""
@@ -125,7 +131,7 @@ def getTransforms(shapeList, fullPath=True):
     """Return all the transforms of the list of shapes in argument"""
     transforms = []
     for node in shapeList:
-        parent = getTransform(node)
+        parent = getTransform(node, fullPath)
         transforms.append(parent)
     transforms = filter(bool, transforms)
     return transforms
@@ -150,10 +156,25 @@ def getFirstSelection(filterNb=None, longName=False):
     selection = cmds.ls(selection=True, long=longName)
     if filterNb and selection:
         selection = cmds.filterExpand(selection, sm=filterNb)
-    if selection:
-        return selection[0]
-    else:
-        return ''
+    return getFirstItem(selection, '')
+
+
+def isVisible(node):
+    visible = False
+    try:
+        visible = cmds.getAttr(node + '.visibility')
+        visible = visible and not cmds.getAttr(node + '.intermediateObject')
+    except ValueError:
+        pass
+    try:
+        visible = visible and cmds.getAttr(node + '.overrideVisibility')
+    except ValueError:
+        pass
+    if visible:
+        parents = cmds.listRelatives(node, parent=True)
+        if parents:
+            visible = isVisible(getFirstItem(parents))
+    return visible
 
 
 def longNameOf(node):
@@ -215,9 +236,8 @@ def getSGsFromShape(shape):
 def getShaderAssignation(shader):
     shadingGroups = getSGsFromMaterial(shader) # Add checks?
     if shadingGroups:
-        return cmds.sets(shadingGroups, query=True)
+        return cmds.sets(shadingGroups, query=True) or []
     return []
-
 
 
 def transferMaterials(shape, toAssign, worldSpace=True):
@@ -233,6 +253,70 @@ def copyUV(object, toAssign):
             cmds.polyTransfer(object, vertices=True, vertexColor=False, uvSets=1, alternateObject=i)
         else:
             logger.error('The mesh %s do not share the same topology with %s. Skipped' % (i, object))
+
+
+
+def getReferences(loadState=False, nodesInRef=False):
+    """Returns a dictionary with the namespace as keys
+    and a list containing the proxyManager if there is one, the refnode, and its load state
+    """
+    result = dict()
+    proxyManagers = set()
+    references = cmds.file(query=True, reference=True)
+    for i in references:
+        refNode = cmds.referenceQuery(i, referenceNode=True)
+        connection = cmds.connectionInfo(refNode + '.proxyMsg', sourceFromDestination=True)
+        if connection:
+            proxyManagers.update([connection.split('.')[0]])
+        else:
+            namespace = cmds.file(i, parentNamespace=True, query=True)[0] + ':' + cmds.file(i, namespace=True, query=True)
+            namespace =  cmds.file(i, namespace=True, query=True)
+            # namespace = ('' if namespace.startswith(':') else ':') + namespace
+            result[namespace] = {'proxyManager': None, 'refNode': refNode}
+
+    for proxy in proxyManagers:
+        connection = cmds.connectionInfo(proxy + '.activeProxy', destinationFromSource=True)
+        activeProxy = cmds.listConnections(connection, source=False)[0]
+        namespace = cmds.referenceQuery(activeProxy, parentNamespace=True)[0]
+        refNode = cmds.referenceQuery(activeProxy, referenceNode=True)
+        result[namespace] = {'proxyManager': proxy, 'refNode': refNode}
+
+    for ref in result:
+        if loadState:
+            isLoaded = cmds.referenceQuery(result[ref]['refNode'], isLoaded=True)
+            result[ref]['isLoaded'] = isLoaded
+        if nodesInRef:
+            nodes = cmds.referenceQuery(result[ref]['refNode'], nodes=True)
+            result[ref]['nodesInRef'] = nodes
+    return result
+
+
+def getReferences2():
+    """Returns a dictionary with the namespace as keys
+    and a list containing the proxyManager if there is one, the refnode, and its load state
+    """
+    result = dict()
+    proxyRefs = []
+    references = cmds.ls(references=True)
+    for i in cmds.ls(type='proxyManager'):
+        proxyRefs += cmds.listConnections(i + '.proxyList', source=False)
+        connection = cmds.connectionInfo(i + '.activeProxy', destinationFromSource=True)
+        activeProxy = cmds.listConnections(connection, source=False)[0]
+        namespace = cmds.referenceQuery(activeProxy, namespace=True)
+        isLoaded = cmds.referenceQuery(activeProxy, isLoaded=True)
+        result[namespace] = [i, activeProxy, isLoaded]
+
+    for i in proxyRefs:
+        references.remove(i)
+    for i in references:
+        try:
+            refNode = cmds.referenceQuery(i, referenceNode=True, topReference=True)
+            namespace = cmds.referenceQuery(activeProxy, namespace=True)
+            isLoaded = cmds.referenceQuery(i, isLoaded=True)
+            result[namespace] = [None, refNode, isLoaded]
+        except RuntimeError, e:
+            logger.error(e)
+    return result
 
 
 def listReferences():
@@ -305,6 +389,7 @@ def loadPlugin(plugin):
 
 
 def loadMayatomr():
+    """Unlock the nodes, load MentalRay, then relock the nodes to avoid a bad initialisation"""
     lockedNodes = cmds.ls(lockedNodes=True)
     toRemove = cmds.ls(referencedNodes=True) + cmds.ls(type='reference')
     lockedNodes = list(set(lockedNodes) - set(toRemove))
@@ -329,6 +414,23 @@ def loadTurtle():
     for nodeType, nodeName in turtleNodes.iteritems():
         if not cmds.objExists(nodeName):
             cmds.createNode(nodeType, name=nodeName)
+
+
+def createFileNode(name='file'):
+    texture = cmds.shadingNode('file', asTexture=True)
+    placement = cmds.shadingNode('place2dTexture', asUtility=True)
+    attributes = ['.coverage', '.translateFrame', '.rotateFrame', '.mirrorU', '.mirrorV', '.stagger', '.wrapU', '.wrapV', '.repeatUV', '.offset', '.rotateUV', '.noiseUV', '.vertexUvOne', '.vertexUvTwo', '.vertexUvThree', '.vertexCameraOne']
+    for attr in attributes:
+        cmds.connectAttr(placement + attr, texture + attr, force=True)
+    cmds.connectAttr(placement + '.outUV', texture + '.uv', force=True)
+    cmds.connectAttr(placement + '.outUvFilterSize', texture + '.uvFilterSize', force=True)
+    return texture, placement
+
+
+
+
+
+
 
 
 
@@ -371,6 +473,54 @@ def string2bool(string, strict=True):
         else:
             return string
 
+def createDir(path):
+    """Creates a directory"""
+    try:
+        os.makedirs(path)
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
+
+def camelCaseSeparator(label, separator=' '):
+    """Convert a CamelCase to words separated by separator"""
+    return re.sub(r'((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))', r'%s\1' % separator, label)
+
+def toNumber(s):
+    """Convert a string to an int or a float depending of their types"""
+    try:
+        return int(s)
+    except ValueError:
+        return float(s)
+
+def replaceExtension(path, ext):
+    if not ext.startswith('.'):
+        ext = ''.join(['.', ext])
+    return path.replace(os.path.splitext(path)[1], ext)
+
+def humansize(nbytes):
+    suffixes = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']
+    if nbytes == 0: return '0 B'
+    i = 0
+    while nbytes >= 1024 and i < len(suffixes)-1:
+        nbytes /= 1024.
+        i += 1
+    f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
+    return '%s %s' % (f, suffixes[i])
+
+def lstripAll(toStrip, stripper):
+    if toStrip.startswith(stripper):
+        return toStrip[len(stripper):]
+    return toStrip
+
+def rstripAll(toStrip, stripper):
+    if toStrip.endswith(stripper):
+        return toStrip[:-len(stripper)]
+    return toStrip
+
+
+
+
+
 
 
 
@@ -394,6 +544,8 @@ class ReselectContext(object):
     def __exit__(self, *exc_info):
         cmds.select(self.selectionList)
 
+# with ReselectContext():
+#     ... your code here....
 
 
 def undoChunk(method):
@@ -419,11 +571,32 @@ class UndoContext(object):
 #     ... your code here....
 
 
-
 def withmany(method):
-    """A decorator that iterate through all the elements and eval the """
+    """A decorator that iterate through all the elements and eval each one if a list is in input"""
     def many(many_foos):
         for foo in many_foos:
             yield method(foo)
     method.many = many
     return method
+
+
+def memoizeSingle(f):
+    """Memoization decorator for a function taking a single argument"""
+    class memodict(dict):
+        def __missing__(self, key):
+            ret = self[key] = f(key)
+            return ret
+    return memodict().__getitem__
+
+
+def memoizeSeveral(f):
+    """Memoization decorator for functions taking one or more arguments"""
+    class memodict(dict):
+        def __init__(self, f):
+            self.f = f
+        def __call__(self, *args):
+            return self[args]
+        def __missing__(self, key):
+            ret = self[key] = self.f(*key)
+            return ret
+    return memodict(f)
