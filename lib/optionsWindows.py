@@ -2,7 +2,7 @@ __version__ = '1.1.1'
 import maya.cmds as cmds
 
 class td_OptionsWindow(object):
-    """A base class for an options window"""
+    """A base class for an options window that match the default Maya ones"""
 
     @classmethod
     def showUI(cls):
