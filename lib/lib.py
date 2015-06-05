@@ -427,10 +427,39 @@ def createFileNode(name='file'):
     return texture, placement
 
 
+def deleteUnknownPluginNodes(plugin):
+    """Delete nodes related to a specific unknown plugin
+    Maya 2015 SP6 and up only
+    """
+    unknownNodes = cmds.ls(type='unknown')
+    for node in unknownNodes:
+        plug = cmds.unknownNode(node, query=True, plugin=True)
+        if plug == plugin:
+            cmds.lockNode(node, lock=0)
+            cmds.delete(node)
+            logger.debug('Deleted node: {0}'.format(node))
 
 
+def deleteUnknownPlugins():
+    """Delete all and unknown plugins referenced and their related nodes
+    Maya 2015 SP6 and up only!
+    """
+    unknownPlugins = cmds.unknownPlugin(query=True, list=True) or []
+    for plugin in unknownPlugins:
+        deleteUnknownPluginNodes(plugin)
+        cmds.unknownPlugin(plugin, remove=True)
+        logger.debug('Removed the plugin: {0}'.format(plugin))
 
 
+def setAllPanelsToRenderer(renderer, reset=True):
+    """Set all the models panels to the specified renderer. It will do a reset of everything regarding the Viewport 2.0 if no model panels use it.
+    Possible values: base_OpenGL_Renderer, hwRender_OpenGL_Renderer, vp2Renderer
+    """
+    modelPanels = cmds.getPanel(type='modelPanel')
+    for panel in modelPanels:
+        cmds.modelEditor(panel, edit=True, rendererName=renderer)
+    if reset or os.environ.get('MAYA_DISABLE_VP2_WHEN_POSSIBLE', False):
+        cmds.ogs(reset=True)
 
 
 
@@ -493,7 +522,7 @@ def toNumber(s):
         return float(s)
 
 def replaceExtension(path, ext):
-    if not ext.startswith('.'):
+    if ext and not ext.startswith('.'):
         ext = ''.join(['.', ext])
     return path.replace(os.path.splitext(path)[1], ext)
 
@@ -527,14 +556,13 @@ def rstripAll(toStrip, stripper):
 
 
 
-
-
 def reSelect(method):
     """A decorator that reselect the elements selected prior the execution of the method"""
     def selected(*args, **kw):
         sel = cmds.ls(sl=True)
         result = method(*args, **kw)
-        cmds.select(sel)
+        if sel:
+            cmds.select(sel)
     return selected
 
 
@@ -542,7 +570,8 @@ class ReselectContext(object):
     def __enter__(self):
         self.selectionList = cmds.ls(sl=True)
     def __exit__(self, *exc_info):
-        cmds.select(self.selectionList)
+        if self.selectionList:
+            cmds.select(self.selectionList)
 
 # with ReselectContext():
 #     ... your code here....
