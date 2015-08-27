@@ -1,0 +1,232 @@
+//creates differently colored objects using vertex color (doesn't affect shaders)
+string $sel[] = `ls -sl`;
+for($obj in $sel){
+    select -cl;
+    select -r $obj;
+    $r = rand(0,1);
+    $g = rand(0,1);
+    $b = rand(0,1);
+    polyColorPerVertex -r $r -g $g -b $b -a 1 -nun -cdo;
+}
+select -cl;
+select -r $sel;
+
+
+
+
+
+// Créer et calcul la vitesse d'un objet
+global proc keySpeed(){
+    $initialTime = `currentTime -q`;
+    $target = `ls -sl`;
+    if(!objExists ($target[0]+".speed")){
+        addAttr -ln "speed"  -at double $target[0];
+        setAttr -e -keyable true {$target[0]+".speed"};
+    }
+    float $fs = `playbackOptions -q -min`;
+    float $fe = `playbackOptions -q -max`;
+    currentTime -e ($fs-1);
+    $posA = getPos($target[0]);
+    $posB = $posA;
+    for($i = $fs;$i<=$fe;$i++){
+        currentTime -e $i;
+        $posA = getPos($target[0]);
+        vector $magn = <<$posB[0]-$posA[0],$posB[1]-$posA[1],$posB[2]-$posA[2]>>;
+        //print("\n"+$i+" "+mag($magn));
+        float $speed = `mag($magn)`;
+        setAttr ($target[0]+".speed") $speed;
+        setKeyframe ($target[0]+".speed");
+        $posB = $posA;
+    }
+    currentTime -e $initialTime;
+}
+
+global proc float[] getPos(string $obj){
+    select -r $obj;
+    setToolTo moveSuperContext;
+    float $centerPosi[] = `manipMoveContext -q -position Move`;
+    return $centerPosi;
+}
+keySpeed;
+
+
+
+
+
+
+
+//Linear Align Objects
+arrange;
+global proc arrange(){
+    string $sel[] = `ls -sl`;
+    $first = $sel[0];
+    $size = size($sel);
+    $last = $sel[$size-1];
+    float $firstTr[] = `xform -q -r -t $first`;
+    float $firstRt[] = `xform -q -r -ro $first`;
+    float $firstSl[] = `xform -q -r -s $first`;
+    float $lastTr[] = `xform -q -r -t $last`;
+    float $lastRt[] = `xform -q -r -ro $last`;
+    float $lastSl[] = `xform -q -r -s $last`;
+    for($a = 0; $a<$size;$a++){
+        $r = ($a*1.0)/($size-1);
+        //super beau code  \o/
+        setAttr ($sel[$a]+".translateX") ($firstTr[0]+$r*($lastTr[0]-$firstTr[0]));
+        setAttr ($sel[$a]+".translateY") ($firstTr[1]+$r*($lastTr[1]-$firstTr[1]));
+        setAttr ($sel[$a]+".translateZ") ($firstTr[2]+$r*($lastTr[2]-$firstTr[2]));
+        setAttr ($sel[$a]+".rotateX") ($firstRt[0]+$r*($lastRt[0]-$firstRt[0]));
+        setAttr ($sel[$a]+".rotateY") ($firstRt[1]+$r*($lastRt[1]-$firstRt[1]));
+        setAttr ($sel[$a]+".rotateZ") ($firstRt[2]+$r*($lastRt[2]-$firstRt[2]));
+        setAttr ($sel[$a]+".scaleX") ($firstSl[0]+$r*($lastSl[0]-$firstSl[0]));
+        setAttr ($sel[$a]+".scaleY") ($firstSl[1]+$r*($lastSl[1]-$firstSl[1]));
+        setAttr ($sel[$a]+".scaleZ") ($firstSl[2]+$r*($lastSl[2]-$firstSl[2]));
+    }
+}
+
+
+
+//places a circle at the base of a path
+//select curve and run
+source generateChannelMenu.mel;
+source channelBoxCommand.mel;
+string $objs[] = `ls -sl`;
+string $select[] = {};
+for($obj in $objs){
+
+    string $circle[] = `circle -ch on -o on -nr 1 0 0 -r .5`;
+    float $e = `playbackOptions -query -maxTime`;
+    float $s = `playbackOptions -query -minTime`;
+    string $pa = `pathAnimation -fractionMode true -follow true -followAxis x -upAxis y -worldUpType "vector" -worldUpVector 0 1 0 -inverseUp false -inverseFront false -bank false -startTimeU ($s) -endTimeU ($e) $circle[0] $obj`;
+    CBdeleteConnection($pa+".u");
+    $select[size($select)]=$circle[0];
+
+}
+
+select -r $select;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{
+    if (`window -exists blenderW`) deleteUI blenderW;
+    if (`windowPref -exists blenderW`) windowPref -remove blenderW;
+    string $window = `window -widthHeight 250 350 -title "Blender" blenderW `;
+    columnLayout -columnAttach "both" 6 -rowSpacing 10 -columnWidth 250;
+    text -ww 1 -l "Blends translates, rotates and scales of elements 'A' with elements 'B' to elements 'C'. \n Order is important. The blend attribute will be created on first element of A";
+    checkBoxGrp -numberOfCheckBoxes 3 -vr -label "Attrs to blend " -va3 1 1 1 -labelArray3 "Translate" "Rotate" "Scale" cbg;
+    button -label "Set 'A' Selection" -command "selA" selAButton;
+    button -label "Set 'B' Selection" -en 0 -command "selB" selBButton;
+
+    button -label "Set 'C' (target) selection" -en 0 -command "selC" selCButton;
+    button -label "Apply" -command "blendAttr" -en 0 blendButton;
+    button -label "Reset" -command "resetAll" resetButton;
+    button -label "Cancel/close" -command "cancelpr";
+    showWindow $window;
+    global string $A[];
+    global string $B[];
+    global string $C[];
+    proc selA(){
+        $objs = `ls -sl`;
+        if(size($objs)!=0){
+            button -e -en 0 -label ("Set 'A' Selection ("+size($objs[0])+")") "selAButton";
+            button -e -en 1 "selBButton";
+            $A = $objs;
+            }
+    }
+    proc selB(){
+        $objs = `ls -sl`;
+        if(size($objs)!=0){
+            button -e -en 0 -label ("Set 'B' Selection ("+size($objs[0])+")") "selBButton";
+            button -e -en 1 "selCButton";
+            $B = $objs;
+            }
+    }
+    proc selC(){
+        $objs = `ls -sl`;
+        if(size($objs)!=0){
+            button -e -en 0 -label ("Set 'C' (target) selection ("+size($objs[0])+")") "selCButton";
+            button -e -en 1 "blendButton";
+            $C = $objs;
+            }
+    }
+    proc blendAttr(){
+        $objs = $C;
+        if(size($objs)!=0){
+
+            int $trCB = `checkBoxGrp -q -v1 "cbg"`;
+            int $roCB = `checkBoxGrp -q -v2 "cbg"`;
+            int $scCB = `checkBoxGrp -q -v3 "cbg"`;
+
+            string $at = `addAttr -ln "blender"  -at double  -min 0 -max 1 -dv (0.5) $A[0]`;
+            setAttr -e-keyable true ($A[0]+".blender");
+
+            for($i = 0; $i < size($B);$i++){
+                string $ob_a = $A[$i];
+                string $ob_b = $B[$i];
+                string $ob_c = $objs[$i];
+                if($trCB){
+                    $md = `createNode blendColors`;
+                    connectAttr -f ($ob_a+".translate") ($md+".color1");
+                    connectAttr -f ($ob_b+".translate") ($md+".color2");
+                    connectAttr -f ($A[0]+".blender") ($md+".blender");
+                    connectAttr -f ($md+".output") ($ob_c+".translate");
+                }
+                if($roCB){
+                    $md = `createNode blendColors`;
+                    connectAttr -f ($ob_a+".rotate") ($md+".color1");
+                    connectAttr -f ($ob_b+".rotate") ($md+".color2");
+                    connectAttr -f ($A[0]+".blender") ($md+".blender");
+                    connectAttr -f ($md+".output") ($ob_c+".rotate");
+                }
+                if($scCB){
+                    $md = `createNode blendColors`;
+                    connectAttr -f ($ob_a+".scale") ($md+".color1");
+                    connectAttr -f ($ob_b+".scale") ($md+".color2");
+                    connectAttr -f ($A[0]+".blender") ($md+".blender");
+                    connectAttr -f ($md+".output") ($ob_c+".scale");
+                }
+            }
+            select -r $A[0];
+            resetAll();
+        }else{
+            warning "No objects selected";
+        }
+    }
+    proc resetAll(){
+        $A = {""};
+        $B = {""};
+        $C = {""};
+        button -e -en 1 -label ("Set 'A' selection") "selAButton";
+        button -e -en 0 -label ("Set 'B' selection") "selBButton";
+        button -e -en 0 -label ("Set 'C' (target) selection") "selCButton";
+        button -e -en 0 "blendButton";
+    }
+    proc cancelpr(){
+        $A = {""};
+        $B = {""};
+        $C = {""};
+        deleteUI blenderW;
+    }
+}
