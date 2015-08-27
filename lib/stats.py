@@ -2,9 +2,9 @@
 This tool allows you to record events and time their execution.
 
 Initialize it one time with the name of the tool, the author and the number version:
-stats = Stats('Toolname', 'author', 'b153') 
+stats = Stats('Toolname', 'author', 'b153')
 It will then process all the important info once and for all (datetime, username, software, project, machine name).
-Then each time you want to record an event you call it back with the name of the status you want. 
+Then each time you want to record an event you call it back with the name of the status you want.
 For example each time you want to know a user opened your tool, call it :
 stats.emit('open')
 
@@ -22,7 +22,7 @@ The Row object calls the Datetimer object to keep track of the current date and 
 
 
 
-It records everything in a table specific to the soft used. If the soft can't be retrieved it is recorded in the 'Unknown' table. You can blacklist users so the records go in another specific table. 
+It records everything in a table specific to the soft used. If the soft can't be retrieved it is recorded in the 'Unknown' table. You can blacklist users so the records go in another specific table.
 Timeouts to the database are handled. If a table does not exists, it will be created automatically. And if everything fails to insert the data in the database, it is saved in a file on the network with the SQL call with a specific uuid.
 The calls to the database are threaded (and locked) so they won't block the execution of the main programs.
 
@@ -31,13 +31,13 @@ The crashes are tracked by putting '0.00000' in the timer field, then it is upda
 
 
 DONT FORGET TO SPECIFY THE MYSQL CREDENTIALS AND THE PATH TO THE FILE RECORDING THE FAILED SQL CALL!
-Row.connect()
-FAILEDSQL
+    Row.connect()
+    FAILEDSQL
 
 
 Improvements:
-Add more softwares 
-If you can have a database by software, it can be useful to have a table by tool instead.
+    Add more softwares
+    If you can have a database by software, it can be useful to have a table by tool instead.
 """
 
 import io
@@ -46,10 +46,13 @@ import sys
 import time
 import uuid
 import logging
+import platform
 import datetime
 import threading
 import MySQLdb
+
 logger = logging.getLogger(__name__)
+
 
 
 def threaded(fn):
@@ -71,54 +74,54 @@ class Datetimer(object):
 class Stats(object):
     def __init__(self, tool, author, version):
         self.params = {}
-        self.params['user'] = self.getUser()
-        self.params['author'] = author
-        self.params['version'] = version
-        self.params['tool'] = tool
+        self.getUser()
+        self.params['user']     = self.getUser()
+        self.params['author']   = author
+        self.params['version']  = version
+        self.params['tool']     = tool
         self.params['software'] = self.getSoftware()
-        self.params['project'] = 'project code'
-        self.params['host'] = 'computer name'
+        self.params['project']  = os.getenv('PROJINK', 'Unknown').split('/')[-1]
+        self.params['host']     = os.getenv('HOST', 'Unknown')
+        self.params['system']   = ' '.join([platform.system(), ' '.join(platform.dist())])
+        self.createSession()
         self.isUserValid()
 
     def getSoftware(self):
-        '''Determine the software name and version.'''
+        '''Determine the software name and version.
+        And define the table where it will be registered.
+        '''
         try:
             import maya.cmds
             self.params['table'] = 'Maya'
             return maya.cmds.about(installedVersion=True)
         except ImportError:
             pass
-
-        try:
-            import hou
-            self.params['table'] = 'Houdini'
-            return hou.applicationVersionString()
-        except ImportError:
-            pass
-
-        try:
-            import mari.app
-            self.params['table'] = 'Mari'
-            return mari.app.version().string()
-        except ImportError:
-            pass
-
         try:
             import nuke
             self.params['table'] = 'Nuke'
             return nuke.NUKE_VERSION_STRING
         except ImportError:
             pass
-
+        try:
+            import mari.app
+            self.params['table'] = 'Mari'
+            return mari.app.version().string()
+        except ImportError:
+            pass
+        try:
+            import hou
+            self.params['table'] = 'Houdini'
+            return hou.applicationVersionString()
+        except ImportError:
+            pass
         try:
             import bpy.app
             self.params['table'] = 'Blender'
             return bpy.app.version_string
         except ImportError:
             pass
-
         self.params['table'] = 'Unknown'
-        return ''
+        return 'Unknown'
 
     def getUser(self):
         '''Get the user name'''
@@ -128,13 +131,18 @@ class Stats(object):
         except ImportError:
             import getpass
             return getpass.getuser()
-        return 'unknown'
+        return 'UNKNOWN'
+
+    def createSession(self):
+        self.params['session'] = uuid.uuid1().int
 
     def isUserValid(self):
         '''Do not register some users.'''
         special_users = ['captain3d'. 'regnareb']
         if self.params['user'] in special_users:
             self.params['table'] = 'developers'
+            return False
+        return True
 
     def emit(self, status, timer=False):
         return Row(status=status, timer=timer, **self.params)
@@ -145,22 +153,16 @@ class Stats(object):
 
 class Row(object):
     FAILEDSQL = r'the/path/to/the/file/you/want.txt'
-    ORDER = ['project', 'software', 'tool', 'author', 'version', 'user', 'host', 'status']
-    LIMITS = {'project': 16, 'software': 64, 'tool': 64, 'author': 16, 'version': 16, 'user': 16, 'host': 16, 'status': 64, 'timer': [14, 5]}
+    ORDER = ['project', 'software', 'system', 'tool', 'author', 'version', 'user', 'host', 'status', 'file']
+    LIMITS = {'project': 16, 'software': 64, 'tool': 64, 'author': 32, 'version': 16, 'user': 16, 'host': 16, 'file': 255, 'status': 64, 'timer': [14, 5], 'session': 41, 'system': 64}
 
     def __init__(self, **kwargs):
         for key, value in kwargs.iteritems():
             setattr(self, key, value)
         self.lock = threading.Lock()
         self.datetimer = Datetimer()
-        self.datetimer.elapsed = 0 if kwargs['timer'] else 'NULL'
+        self.datetimer.elapsed = 0 if kwargs['timer'] else ''
         self.start()
-
-    def execute(self, cursor, sqlList):
-        for sql in sqlLists:
-            cursor.execute(sql)
-        if not hasattr(self, 'ident'):
-            self.ident = cursor.lastrowid
 
     def connect(self, sql):
         delay = 1
@@ -169,7 +171,6 @@ class Row(object):
         tries.reverse()
         for tries_remaining in tries:
             timeout = 2
-            logger.debug('Timeout: {}\Tries remaining: {}\nSQL: {}\n'.format(timeout, tries_remaining, sql))
             try:
                 db = MySQLdb.connect(host="localhost", user="user", passwd="password", db="database", connect_timeout=timeout)
                 try:
@@ -178,17 +179,14 @@ class Row(object):
                         if not hasattr(self, 'ident'):
                             self.ident = cursor.lastrowid
                 except MySQLdb.ProgrammingError, e:
-                    if e[0] == 1146: 
+                    if e[0] == 1146:
                         # The table does not exists, create it
                         cursor.execute(self.createTable())
-                        cursor.execute(sql)
-                        if not hasattr(self, 'ident'):
-                            self.ident = cursor.lastrowid
-                    else:
-                        raise
+                    raise
                 finally:
                     db.close()
             except Exception as e:
+                logger.debug('Timeout: {0}\nTries remaining: {1}\nSQL: {2}\n'.format(timeout, tries_remaining, sql))
                 if tries_remaining > 0:
                     time.sleep(delay)
                     delay = delay * backoff
@@ -197,11 +195,17 @@ class Row(object):
                     # raise
             else:
                 break
-    @threaded
+
     def stop(self, elapsed=None):
+        if not elapsed:
+            elapsed = self.datetimer.getElapsedTime()
+        self._stop(elapsed)
+        self.elapsed = elapsed
+        return elapsed
+
+    @threaded
+    def _stop(self, elapsed):
         with self.lock:
-            if not elapsed:
-                elapsed = self.datetimer.getElapsedTime()
             sql = """ UPDATE %s SET timer=%s WHERE id=%s;""" % (self.table, elapsed, self.ident)
             self.connect(sql)
 
@@ -209,23 +213,25 @@ class Row(object):
     def start(self):
         with self.lock:
             # truncate the data according to their data types in the database
-            SQL_STRING = [getattr(self, i).encode('ascii','ignore')[:self.LIMITS[i]] for i in self.ORDER] + [str(self.datetimer.date), self.datetimer.elapsed]
-            sql = """ INSERT INTO %s (project, software, tool, author, version, user, host, status, dateTime, timer) VALUES (%s);""" % (self.table, ', '.join(repr(i) if i != 'NULL' else i for i in SQL_STRING))
+            SQL_STRING = [getattr(self, i).encode('ascii','ignore')[:self.LIMITS[i]] for i in self.ORDER] + [str(self.datetimer.date), self.datetimer.elapsed, str(self.session)]
+            sql = """INSERT INTO %s (project, software, system, tool, author, version, user, host, status, file, dateTime, timer, session) VALUES (%s);""" % (self.table, ', '.join(repr(i) if i != 'NULL' else i for i in SQL_STRING))
             self.connect(sql)
 
     def failed(self, sql):
         if not hasattr(self, 'ident'):
             self.ident = uuid.uuid1()
             logger.debug(self.ident)
-        with io.open(self.FAILEDSQL, 'a') as myfile:
-            sql = '{}\n{}\n'.format(self.ident, sql)
-            myfile.write(sql.decode('utf-8'))
+        if self.table is not 'developers':
+            with io.open(self.FAILEDSQL, 'a') as myfile:
+                sql = '{0}\n{1}\n'.format(self.ident, sql)
+                myfile.write(sql.decode('utf-8'))
 
     def createTable(self):
         sql = """CREATE TABLE IF NOT EXISTS {0} (
         id INT NOT NULL AUTO_INCREMENT,
         project VARCHAR({project}) NOT NULL,
         software VARCHAR({software}) NOT NULL,
+        system VARCHAR({system}) NOT NULL,
         tool VARCHAR({tool}) NOT NULL,
         author VARCHAR({author}) NOT NULL,
         version VARCHAR({version}) NOT NULL,
@@ -234,6 +240,35 @@ class Row(object):
         status VARCHAR({status}) NOT NULL,
         datetime DATETIME NOT NULL,
         timer FLOAT({timer[0]}, {timer[1]}),
+        session VARCHAR({session}) NOT NULL,
+        file VARCHAR({file}),
         PRIMARY KEY(id)
         );""".format(self.table, **self.LIMITS)
         return sql
+
+    @property
+    def file(self):
+        def Maya():
+            import maya.cmds
+            return maya.cmds.file(query=True, sceneName=True)
+        def Nuke():
+            import nuke
+            return nuke.root()['name'].value()
+        def Mari():
+            import mari
+            try:
+                return mari.projects.current().info().projectPath()
+            except AttributeError:
+                return ''
+        def Houdini():
+            import hou
+            return hou.hipFile.path()
+        def Blender():
+            import bpy
+            return bpy.data.filepath
+        def Unknown():
+            return ''
+        def developers():
+            import maya
+            return maya.cmds.file(query=True, sceneName=True)
+        return eval(self.table + '()')
