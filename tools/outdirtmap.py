@@ -1,6 +1,6 @@
 """
 Create 4 lights and import a shader, to create some dirt on surfaces and bake it to a tga in the right folder.
-It uses the mglmayabatch to bake it outside of the main maya.
+It uses the mayabatch to bake it outside of the main maya.
 """
 
 import os
