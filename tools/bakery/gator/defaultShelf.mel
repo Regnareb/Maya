@@ -1,0 +1,10 @@
+global proc br_gatorDefaultShelf () {
+    shelfButton
+        -annotation "Copy UVs"
+        -label "CopyUVs"
+        -image "shelfSurfacing/copyUVs.bmp"
+        -command "yourcommand()"
+        -sourceType "mel"
+        -commandRepeatable 1
+    ;
+}
