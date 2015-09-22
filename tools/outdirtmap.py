@@ -19,7 +19,7 @@ initstats = tdStats.Stats('OutDirtmap', 'regnareb', '1')
 
 class td_outDirt(object):
     def __init__(self):
-        self.DHlightGrp                = ''
+        self.lightGrp                = ''
         self.resolutionMap             = 256
         self.pathTMP                   = '/tmp/'
         self.pathFinal                 = ''
@@ -49,7 +49,7 @@ class td_outDirt(object):
         self.saveShaderAssignation()
         self.isReferenceShaderLoaded()
         self.getShadersNodes()
-        self.createLightsDH()
+        self.createLights()
         if any( self.shadersAssignation.values() ):
             self.assignShader()
             self.createBakeSet()
@@ -99,17 +99,17 @@ class td_outDirt(object):
         self.shadingEngine = tdLib.getTypeNode('shadingEngine', nodesInRef)[0]
 
 
-    def createLightsDH(self):
+    def createLights(self):
         """ Create the 4 lights """
         pmc.setAttr('defaultRenderGlobals.enableDefaultLight', 0)
-        if pmc.objExists('DHlights_grp'):
-           pmc.delete('DHlights_grp')
-        DHlight = []
-        DHlight.append( pmc.directionalLight(name='DHdirectLight01', rotation=[-70, 0, 0]))
-        DHlight.append( pmc.directionalLight(name='DHdirectLight02', rotation=(-110, 0, 0)))
-        DHlight.append( pmc.directionalLight(name='DHdirectLight03', rotation=(-90, -20, 0)))
-        DHlight.append( pmc.directionalLight(name='DHdirectLight04', rotation=(-90, 20, 0)))
-        self.DHlightGrp = pmc.group(DHlight, n='DHlights_grp')
+        if pmc.objExists('lights_grp'):
+           pmc.delete('lights_grp')
+        light = []
+        light.append( pmc.directionalLight(name='DHdirectLight01', rotation=[-70, 0, 0]))
+        light.append( pmc.directionalLight(name='DHdirectLight02', rotation=(-110, 0, 0)))
+        light.append( pmc.directionalLight(name='DHdirectLight03', rotation=(-90, -20, 0)))
+        light.append( pmc.directionalLight(name='DHdirectLight04', rotation=(-90, 20, 0)))
+        self.lightGrp = pmc.group(light, n='lights_grp')
 
 
     def assignShader(self):
@@ -198,7 +198,7 @@ class td_outDirt(object):
         if self.executedOnce:
             if pmc.objExists( self.textureBakeSet ): pmc.delete( self.textureBakeSet )
             self.assignOriginalShader( self.shadersAssignation.keys() )
-        if pmc.objExists( self.DHlightGrp ): pmc.delete( self.DHlightGrp )
+        if pmc.objExists( self.lightGrp ): pmc.delete( self.lightGrp )
         if self.referencedShaderFile:
             self.referencedShaderFile.remove()
             self.referencedShaderFile   = ''
