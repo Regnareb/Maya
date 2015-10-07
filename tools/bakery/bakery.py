@@ -227,7 +227,7 @@ class Bakery(object):
             cmds.connectAttr(self.thick + '.outThickness', thickShader + '.outColor', force=True)
 
             # DIRT
-            nodes = cmds.file('/u/lun/Users/hderuer/Sandbox/Labo/DirtTurtle_V2.5_clean.ma', reference=True, returnNewNodes=True, namespace='DIRT')
+            nodes = cmds.file('path_to_your_file_shader.ma', reference=True, returnNewNodes=True, namespace='DIRT')
             self.dirt = cmds.ls(nodes, type='surfaceShader')[0]
             self.dirtSG = tdLib.getFirstItem(cmds.listConnections(self.dirt + '.outColor', source=False))
             if not self.dirtSG:
