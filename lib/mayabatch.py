@@ -67,7 +67,7 @@ class Mayabatch(threading.Thread):
     def run(self):
         tries = range(3)
         tries.reverse()
-        cmd = 'maya -batch -command \'callPython "td.maya.lib.mayabatch" "mayabatchExecution" { "%s", "%s", "%s" }\'' % (self.pathScene, self.pathPickle, self.modulesExtra)
+        cmd = 'maya -batch -command \'callPython "lib.mayabatch" "mayabatchExecution" { "%s", "%s", "%s" }\'' % (self.pathScene, self.pathPickle, self.modulesExtra)
         for tries_remaining in tries:
             self.maya          = subprocess.Popen(cmd,
                                                   stdout=subprocess.PIPE,
