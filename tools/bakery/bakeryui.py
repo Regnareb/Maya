@@ -356,8 +356,8 @@ class BakeryUI(object):
 
         default = None
         group = None
-        titles = ['Send to Calcor']
-        settings = ['Calcor']
+        titles = []
+        settings = []
         uistates = [False]
         defaults = [False]
         for title, setting, state, uistate in zip(titles, settings, defaults, uistates):
@@ -826,7 +826,7 @@ class BakeryUI(object):
             self.interface['maintabs']['dirt']: 'Add the selected shaders to bake a dirt map.\nThe omni directional dirt is based on ambient occlusion and adds grime in all recessed areas.',
             self.interface['finalbuttons']['preview']: 'Create a preview bake with a smaller resolution of:\n - the selected shader,\n - or all the shaders if none are selected.',
             self.interface['finalbuttons']['interactivebake']: 'Bake the textures in this session of Maya instead of a deported batch.\nIt will either bake the selected shader, or all the shaders if none are selected.',
-            self.interface['finalbuttons']['bake']: 'Send the shader(s) to bake.\nYou will receive an email with the result and link(s) to the file(s).\nIf you sent the bake to Calcor, you will have a first mail confirming the job, and a second one by Calcor when it ends.',
+            self.interface['finalbuttons']['bake']: 'Send the shader(s) to bake.\nYou will receive an email with the result and link(s) to the file(s).',
 
             self.interface['OCC']['resolution']: 'Resolution of the final map.',
             self.interface['OCC']['minSamples']: 'Minimum number of rays used for the sampling of occlusion.',
