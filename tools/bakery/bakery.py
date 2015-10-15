@@ -208,7 +208,7 @@ class Bakery(object):
         old = self.prepared
         self.prepared = False
         cmds.savePrefs(general=True)
-        mayabatch.Mayabatch(objectRecorded=self, exportList=self.mergeExportList(), mailEnabled=self.mail(), modulesExtra=True, stats=initstats, calcor=self.getPreference('Calcor'))
+        mayabatch.Mayabatch(objectRecorded=self, exportList=self.mergeExportList(), mailEnabled=self.mail(), modulesExtra=True, stats=initstats)
         self.prepared = old
 
     def createShaders(self):
