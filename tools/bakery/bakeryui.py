@@ -5,7 +5,7 @@ import webbrowser
 from PySide import QtCore, QtGui
 import lib.qtwrapper as qtwrapper
 import bakery as b
-import lib.lib as tdLib
+import lib.tdLib as tdLib
 
 logger = logging.getLogger(__name__)
 
@@ -169,13 +169,12 @@ class RowLayout(QtGui.QHBoxLayout):
     def getValue(self):
         values = []
         for field in self.fields:
-            values.append(field.text())
+            values.append(field.valueFromText(field.text()))
         for combobox in self.comboboxes:
-            values.append(str(combobox.currentIndex()))
+            values.append(combobox.currentIndex())
         for checkbox in self.checkboxes:
             state = checkbox.checkState()
-            state = 1 if state else state
-            values.append(state)
+            values.append(bool(state))
         return values
 
     def hide(self):
@@ -356,9 +355,9 @@ class BakeryUI(object):
 
         default = None
         group = None
-        titles = []
-        settings = []
-        uistates = [False]
+        titles = ['Additional setting']
+        settings = ['additional']
+        uistates = [True] # Whether the setting is disabled or not
         defaults = [False]
         for title, setting, state, uistate in zip(titles, settings, defaults, uistates):
             pref = self.Bakery.getPreference(setting)
@@ -578,6 +577,7 @@ class BakeryUI(object):
         button.setMinimumWidth(40)
         button.clicked.connect(lambda: self.changeCurrentShader(button))
         button.setStyleSheet('background-color: {}'.format(colors[shader.mode]))
+        self.window.setStyleSheet("QPushButton:checked {border:none;padding:4px}");
         self.updateShaderTooltip(button)
         self.interface['shaders']['buttonGroup'].addButton(button)
         field = QtGui.QLineEdit(self.centralwidget)
@@ -670,7 +670,7 @@ class BakeryUI(object):
         """Update the shader attributes in the engine from the values set in the UI."""
         shader.renderAttr['resolution'] = int(self.interface[shader.mode]['resolution'].getValue()[0])
         for attr in shader.shaderAttr:
-            shader.shaderAttr[attr] = tdLib.toNumber(self.interface[shader.mode][attr].getValue()[0])
+            shader.shaderAttr[attr] = self.interface[shader.mode][attr].getValue()[0]
 
     def getDefaultShaderAttributes(self):
         """Set default attributes values in the UI."""
@@ -887,7 +887,7 @@ def fade(target, duration, propertyName='opacity', start=0, end=1, easingCurve=Q
 
 
 def launch_ui():
-    MainWindow = qtwrapper.getMayaMainWindow()
+    MainWindow = qtwrapper.get_maya_window()
     Bakery = b.Bakery()
     gui = BakeryUI(MainWindow, Bakery)
     gui.setupUi()
@@ -895,4 +895,4 @@ def launch_ui():
     return gui
 
 if __name__ == '__main__':
-    test = launch_ui()
+    gui = launch_ui()
