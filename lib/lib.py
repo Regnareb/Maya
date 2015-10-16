@@ -51,6 +51,9 @@ def formatPath(fileName, path='', prefix='', suffix=''):
     filePath = path + prefix + fileName + suffix + fileExt
     return filePath
 
+def normpath(path):
+    """Fix some problems with Maya evals or some file commands needing double escaled anti-slash '\\\\' in the path in Windows"""
+    return os.path.normpath(path).replace('\\', '/')
 
 def saveAsCopy(fileName='', path='', prefix='', suffix=''):
     """ Save the scene elsewhere while continuing to work on the original path """
