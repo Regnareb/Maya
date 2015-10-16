@@ -68,7 +68,7 @@ class Shader(object):
 
     def getExportPath(self, mode):
         """ Return the absolute path and the name of the asset """
-        return '/final/path/'
+        return '/final/path/', 'filename'
 
     def checkValidity(self):
         for i in reversed(range(len(Shader.instances))):
@@ -162,7 +162,7 @@ class Bakery(object):
     def constructTurtleCommand(self, shader, udim, filename, forcePath=None, dividor=1):
         directory = shader.texturePath
         if forcePath:
-            directory = forcePath
+            directory = tdLib.normpath(forcePath)
         resolution = int(shader.renderAttr['resolution'] / dividor)
         alpha = shader.renderAttr['alpha']
         merge = shader.renderAttr['merge']
@@ -268,7 +268,10 @@ class Bakery(object):
             if toHide:
                 cmds.hide(toHide)
         elif shader.mode == 'RGB':
-            attr = cmds.getAttr(shader.name + '.color')
+            try:
+                attr = cmds.getAttr(shader.name + '.color')
+            except ValueError:
+                attr = cmds.getAttr(shader.name + '.outColor')
             cmds.setAttr(self.rgb + '.outColor', *attr[0], type='double3')
 
 
@@ -303,6 +306,7 @@ class Bakery(object):
         try:
             cmds.select('TurtleRenderOptions')
             path = os.path.join(os.path.split(__file__)[0], 'presets', '{}.mel'.format(preset))
+            path = tdLib.normpath(path)
             mel.eval('source "{}"'.format(path))
         except ValueError:
             pass
@@ -344,12 +348,12 @@ class Bakery(object):
                     self.bakeShader(shader, cmd)
                 pattern = '-directory \"(.*?)\" -fileName \"(.*?)\"'
                 reg = re.search(pattern, cmd)
-                path = os.path.join(reg.group(1), reg.group(2))
+                path = tdLib.normpath(os.path.join(reg.group(1), reg.group(2)))
                 nodeFile, placement = tdLib.createFileNode()
-                cmds.connectAttr(nodeFile + '.outColor', shader.name + '.color', force=True)
                 cmds.setAttr('{}.fileTextureName'.format(nodeFile), path, type="string")
                 cmds.setAttr('{}.uvTilingMode'.format(nodeFile), 3)
                 cmds.setAttr('{}.uvTileProxyGenerate'.format(nodeFile), 1)
+                cmds.connectAttr(nodeFile + '.outColor', shader.name + '.color', force=True)
             except ZeroDivisionError:
                 self.render(shader)
             except UnboundLocalError:
@@ -357,6 +361,8 @@ class Bakery(object):
             except RuntimeError as e:
                 if 'cannot be connected to' in repr(e):
                     cmds.connectAttr(nodeFile + '.output3D', shader.name + '.outColor', force=True)
+                if 'The destination attribute' in repr(e):
+                    cmds.connectAttr(nodeFile + '.outColor', shader.name + '.outColor', force=True)
                 elif 'No object matches name: {}.uvTilingMode'.format(nodeFile) in repr(e):
                     # This is used for Maya version < 2015. You could use a plusMinusAverage node instead and several file nodes to have the same effect.
                     # This old method does not displays the textures in the UV editor, but it works great in the viewport 1 unlike the current method.
@@ -384,7 +390,7 @@ class Bakery(object):
                 cmd = self.constructTurtleCommand(shader, udim, filename)
                 tdLib.createDir(shader.texturePath) # Create directory?
                 self.bakeShader(shader, cmd)
-                fullpath = os.path.join(shader.texturePath, filename)
+                fullpath = tdLib.normpath(os.path.join(shader.texturePath, filename))
                 self.result.append('<a href="file://{0}" {1}>{0}</a> - <a href="rvlink://{0}" {1}>Open in RV</a>'.format(fullpath, 'style="text-decoration: none"'))
 
         print '<br />'.join(self.result) # This is used by the Mayabatch lib to send the result by mail.
