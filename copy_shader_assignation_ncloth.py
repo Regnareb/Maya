@@ -1,4 +1,4 @@
-import td.maya.lib.tdLib as tdLib
+import lib.lib as tdLib
 
 
 OBJS = []
