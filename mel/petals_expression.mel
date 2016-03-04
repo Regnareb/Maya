@@ -10,79 +10,75 @@ int $instance2mesh = c_FX_flowerPetals01.instance2mesh;
 
 if (FX_flowerPetals01_nParticleShape.collisionGeometryIndex != -1) 
 {
-    int $instancedNb = c_FX_flowerPetals01.instancedNb;
-    FX_flowerPetals01_nParticleShape.instancerId = FX_flowerPetals01_nParticleShape.instancerId % $instancedNb + 5;
-
-
-float $fx[16], $fy[16], $fz[16];
-vector $resA, $resB, $resFIN;
-float $radX, $radY, $radZ, $degX, $degY, $degZ;
+    float $fx[16], $fy[16], $fz[16];
+    vector $resA, $resB, $resFIN;
+    float $radX, $radY, $radZ, $degX, $degY, $degZ;
 
 vector $dir = <<0,1,0>>; // particle vector (normal) to compare with world vector.
 
 $degX = $rotPP.x;
 $degY = $rotPP.y;
 $degZ = $rotPP.z;
- 
+
 // right-handed to left-handed
 $degX *= -1;
 $degY *= -1;
 $degZ *= -1;
- 
+
 $radX = deg_to_rad($degX);
 $radY = deg_to_rad($degY);
 $radZ = deg_to_rad($degZ);
- 
+
 $fx[0]= 1;
 $fx[1]= 0;
 $fx[2]= 0;
 $fx[3]= 0;
- 
+
 $fx[4]= 0;
 $fx[5]= cos($radX);
 $fx[6]= -sin($radX);
 $fx[7]= 0;
- 
+
 $fx[8]= 0;
 $fx[9]= sin($radX);
 $fx[10]= cos($radX);
 $fx[11]= 0;
- 
+
 $fx[12]= 0;
 $fx[13]= 0;
 $fx[14]= 0;
 $fx[15]= 1;
- 
+
 $fy[0]= cos($radY);
 $fy[1]= 0;
 $fy[2]= sin($radY);
 $fy[3]= 0;
- 
+
 $fy[4]= 0;
 $fy[5]= 1;
 $fy[6]= 0;
 $fy[7]= 0;
- 
+
 $fy[8]= -sin($radY);
 $fy[9]= 0;
 $fy[10]= cos($radY);
 $fy[11]= 0;
- 
+
 $fy[12]= 0;
 $fy[13]= 0;
 $fy[14]= 0;
 $fy[15]= 1;
- 
+
 $fz[0]= cos($radZ);
 $fz[1]= -sin($radZ);
 $fz[2]= 0;
 $fz[3]= 0;
- 
+
 $fz[4]= sin($radZ);
 $fz[5]= cos($radZ);
 $fz[6]= 0;
 $fz[7]= 0;
- 
+
 $fz[8]= 0;
 $fz[9]= 0;
 $fz[10]= 1;
@@ -92,7 +88,7 @@ $fz[12]= 0;
 $fz[13]= 0;
 $fz[14]= 0;
 $fz[15]= 1;
- 
+
 $selectedObjects = `ls -sl`; //to prevent the bug caused by pointMatrixMult
 $resA = pointMatrixMult($dir, $fx); //rotation around X
 $resB = pointMatrixMult($resA, $fy); //rotation around Y
@@ -100,84 +96,73 @@ $resFIN = pointMatrixMult($resB, $fz); //rotation around Z
 select $selectedObjects; //to prevent the bug caused by pointMatrixMult
 
 
-vector $vector1 = <<0, 1, 0>>; // The world vector to compare with.
+
+
+
+
+vector $vector1 = <<0, 1, 0>>; // World vector to compare with.
 float $degAngle = rad_to_deg (`angle $vector1 $resFIN`); // Degree angle between the world vector, and the particle vector.
-float $produitScal = dotProduct($resFIN, $vector1, 1); // Scalar product, 0 is vertical, 1 is facinUp and -1 is facingDown. 
-//print ("Scalaire : " + $produitScal + "\r\n");
+float $produitScal = dotProduct($resFIN,$vector1,1); // Scalar product, 0 is vertical, 1 and -1 is horizontal. 
+
+int $particleId = FX_flowerPetals01_nParticleShape.particleId;
+//print ("Vector " + $particleId + "  : " + $resFIN + "\r\n");
+//print ("Degree " + $particleId + "  : " + $degAngle + "\r\n");
+//print ("Scalaire " + $particleId + "  : " + $produitScal + "\r\n");
+//print("Velocity " + $particleId + "  : " + $vel + "\r\n");
+//print("Angle " + $particleId + "  : " + $degAngle + "\r\n\r\n");
 
 
 
-if ($instance2mesh)
+
+// If not horizontal, continue to rotate the particle.
+if ($produitScal > -0.8 && $produitScal < 0.8){
+    FX_flowerPetals01_nParticleShape.rotPP += 5;
+//print ("Particle " + $particleId + " verticale !\r\n");
+}
+// If horizontal, copy the instance to a real object.
+else if ($instance2mesh) 
 {
-    vector $rotTMP;
-    vector $rotFinal;
-    float $startTime;
-    int $tourIncrementX = 0;
-    int $tourIncrementZ = 0;
-    if (FX_flowerPetals01_nParticleShape.event == 1) // Set the time/rotFinal/rotTMP at first collision.
+    if (FX_flowerPetals01_nParticleShape.event == 1) // Set the time at first collision.
     {
-        $startTime = frame;
-        $rotTMP = FX_flowerPetals01_nParticleShape.rotPP;
-        $rotTMP = << $rotTMP.x%360, $rotTMP.y%360, $rotTMP.z%360>> ;
-        print ($rotTMP + "\r\n"); 
-        int $flipped = 0;
-        if ($rotTMP.x > 180) {$tourIncrementX=180;}
-        if ($rotTMP.z > 180) {$tourIncrementZ=180;}
-        if ($produitScal < 0) {$flipped = 0;}
-        // X = rand (-10,10) + (10*(1-$produitScal) + $flipped)
-        // Y =($rotPP.y%360)
-        // Z = rand (-10,10) + (10 * (1 - $produitScal))
-        $rotFinal = << rand (-15,15) + (10*(1-$produitScal) + $flipped) + $tourIncrementX, ($rotTMP.y), rand (-15,15) + (10 * (1 - $produitScal)) + $tourIncrementZ >>;
-    } 
-    float $elapsedTime = frame - $startTime; // number of frames since the beginning of the timer.
-    print ("rotFinal : " + $rotFinal + "\r\n");
-    print ("rotPP : " + FX_flowerPetals01_nParticleShape.rotPP + "\r\n");
-    vector $hermite = hermite ($rotTMP, $rotFinal, <<0,0,0>>, <<0,0,0>>, (linstep(0, 5, $elapsedTime)));
-    //vector $hermite = hermite ($rotTMP, <<$rotFinal.x, $rotFinal.y, $rotTMP.z>>, <<1,0,0>>, <<-1,0,0>>, (linstep(0, 20, $elapsedTime)));
-    //vector $hermite = hermite (<<$rotFinal.x, $rotFinal.y, $rotTMP.z>>, $rotFinal, <<1,0,0>>, <<-1,0,0>>, (linstep(0, 20, $elapsedTime-20)));
-    FX_flowerPetals01_nParticleShape.rotPP = $hermite;
-
-
-
-/*    if (FX_flowerPetals01_nParticleShape.event == 1) // Set the time at first collision.
-    {
-        $rotTMP = $rotPP;
         global float $startTime = 0;
         $startTime = `currentTime -q`;
-
-        int $instancedNb = c_FX_flowerPetals01.instancedNb; // Nb of instanced obj
-        vector $posPP = FX_flowerPetals01_nParticleShape.worldPosition; // particle position
-        float $scalePP = FX_flowerPetals01_nParticleShape.scalePP; // Scale of each obj
-        FX_flowerPetals01_nParticleShape.lifespanPP = 0; //Delete the particle
-        string $instancers[] = `ls -type "instancer"`;
-        string $instancedObjs[] = `listConnections -d 0 -s 1 ($instancers[0]+".inputHierarchy")`; // list instanced geometry
-        int $geoId = FX_flowerPetals01_nParticleShape.particleId%$instancedNb; // ID of the instanced geometry 
-
-        duplicate -rr -name "FX_msh_petals";
-        setKeyframe -v 1 -at visibility; 
-        setKeyframe -v 0 -t (`currentTime -q` -1) -at visibility;
-        string $currentSelection = print(`ls -selection`);
-        string $currentSelectionArray[] = `ls -selection`;        
-        parent $currentSelectionArray[0] FX_FX3D_FLOWERPETALS:FX_instanceCopy;
-        makeIdentity -apply true -r 1;
-        setAttr ($currentSelection+ ".t") ($posPP.x) ($posPP.y) ($posPP.z);
-        setAttr ($currentSelection+ ".r") ($hermite.x) ($hermite.y) ($hermite.z);
-        setAttr ($currentSelection+ ".s") ($scalePP/2) ($scalePP/2) ($scalePP/2);
-        setKeyframe -attribute "rotateX";
-        setKeyframe -attribute "rotateY";
-        setKeyframe -attribute "rotateZ";
-        FX_flowerPetals01_nParticleShape.scalePP = 0;
+        FX_flowerPetals01_nParticleShape.velocity = FX_flowerPetals01_nParticleShape.velocity * 0.98;
     }
-
     else if (FX_flowerPetals01_nParticleShape.event > 1) // After the 2nd+ collision
     {
         float $elapsedTime = `currentTime -q` - $startTime;
-        if ($elapsedTime < 10) // Wait X frames
-            {
-                FX_flowerPetals01_nParticleShape.lifespanPP = 0;
-            }
+        if ($elapsedTime <25) // Wait 25 frames
+        {
+            float $elapsedTime = `currentTime -q` - $startTime;
         }
-    }*/
+        else // Delete the particle/copy the mesh/move and rotate the mesh.
+        {
+            int $instancedNb = c_FX_flowerPetals01.instancedNb;
+            vector $posPP = FX_flowerPetals01_nParticleShape.worldPosition;
+            print ($posPP + "\r\n");
+
+            string $instancers[] = `ls -type "instancer"`;
+            string $instancedObjs[] = `listConnections -d 0 -s 1 ($instancers[0]+".inputHierarchy")`; // liste des géometries instancées
+            int $geoId = FX_flowerPetals01_nParticleShape.particleId%$instancedNb; // id de la géometrie instanciée
+
+            select ($instancedObjs[$geoId]);
+            duplicate -rr -name "FX_msh_petals";
+            setKeyframe -v 1 -at visibility; 
+            setKeyframe -v 0 -t (`currentTime -q` -1) -at visibility;
+            string $currentSelection = print(`ls -selection`);
+            string $currentSelectionArray[] = `ls -selection`;
+            parent $currentSelectionArray[0] FX_instanceCopy;
+            makeIdentity -apply true -r 1;
+            setAttr ($currentSelection+ ".t") ($posPP.x) ($posPP.y) ($posPP.z);
+            setAttr ($currentSelection+ ".r") ($rotPP.x) ($rotPP.y) ($rotPP.z);
+            FX_flowerPetals01_nParticleShape.lifespanPP = 0;
+        }
+    }
+
+
+
+
+
 }
 }
 
