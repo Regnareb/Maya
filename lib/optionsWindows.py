@@ -103,7 +103,7 @@ class OptionsWindow(object):
 
     def helpMenuCmd(self, *args):
         """Override this method to display custom help"""
-        cmds.launch(webPage="http://td.macguff.fr/doc")
+        cmds.launch(webPage="http://regnareb.com")
 
     def editMenuSaveCmd(self, *args):
         """Override this method to implement Save Settings"""
