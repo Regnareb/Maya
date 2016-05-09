@@ -1,12 +1,10 @@
-import re
 import os
-import time
-import errno
-import pickle
+import re
 import logging
-from collections import Iterable
+import functools
 import maya.mel as mel
 import maya.cmds as cmds
+import libpython
 logger = logging.getLogger(__name__)
 
 
@@ -18,64 +16,36 @@ def getNewNodesCreated(_function):
     return list(set(after) - set(before))
 
 
-def pickleObject(fullPath, toPickle):
-    """ Pickle an object at the designated path """
-    with open(fullPath, 'w') as f:
-        pickle.dump(toPickle, f)
-    f.close()
-
-
-def unPickleObject(fullPath):
-    """ unPickle an object from the designated file path """
-    with open(fullPath, 'r') as f:
-        fromPickle = pickle.load(f)
-    f.close()
-    return fromPickle
-
-
 def getShaders(listMeshes):
     """Return a list of shaders assigned to the list of shapes/transforms passed in argument"""
     shadingGrps = cmds.listConnections(listMeshes, type='shadingEngine')
     return cmds.ls(cmds.listConnections(shadingGrps), materials=1)
 
 
-def formatPath(fileName, path='', prefix='', suffix=''):
-    """ Create a complete path with a filename, a path and prefixes/suffixes
-    /path/prefix_filename_suffix.ext"""
-    path = os.path.join(path, "")
-    if suffix:
-        suffix = '_' + suffix
-    if prefix:
-        prefix = prefix + '_'
-    fileName, fileExt = os.path.splitext(fileName)
-    filePath = path + prefix + fileName + suffix + fileExt
-    return filePath
-
-def normpath(path):
-    """Fix some problems with Maya evals or some file commands needing double escaled anti-slash '\\\\' in the path in Windows"""
-    return os.path.normpath(path).replace('\\', '/')
-
-def saveAsCopy(fileName='', path='', prefix='', suffix=''):
+def saveAsCopy(path='', filename=''):
     """ Save the scene elsewhere while continuing to work on the original path """
-    currentName = cmds.file(query=True, sceneName=True)
-    if not fileName:
-        fileName = os.path.basename(currentName)
-    filePath = formatPath(fileName, path, prefix, suffix)
-    cmds.file(rename=filePath)
+    currentname = cmds.file(query=True, sceneName=True)
+    head, tail = os.path.split(currentname)
+    if not path:
+        path = head
+    if not filename:
+        filename = tail + '_Copy'
+    filepath = libpython.normpath(os.path.join(path, filename))
+    cmds.file(rename=filepath)
     cmds.file(save=True)
-    cmds.file(rename=currentName)
-    return filePath
+    cmds.file(rename=currentname)
+    return filepath
 
 
 def export(exportList=None, fileName='', path='', prefix='', suffix='', format=''):
     """ Export only the selection if it is passed as argument or the complete scene with references"""
     if not fileName:
         fileName = os.path.basename(cmds.file(query=True, sceneName=True)) or 'nosave'
-    filePath = formatPath(fileName, path, prefix, suffix)
+    filePath = libpython.formatPath(fileName, path, prefix, suffix)
     if exportList:
         cmds.select(exportList, noExpand=True)
     if not format:
-        format = getFirstItem(cmds.file(type=True, query=True)) or 'mayaAscii'
+        format = libpython.getFirstItem(cmds.file(type=True, query=True)) or 'mayaAscii'
     # Export references only if is on Export All mode
     finalPath = cmds.file(filePath, force=True, options="v=0;", type=format, preserveReferences=not bool(exportList), exportUnloadedReferences=not bool(exportList), exportSelected=bool(exportList), exportAll=not bool(exportList), shader=True, channels=True, constructionHistory=True, constraints=True, expressions=True)
     return finalPath
@@ -83,10 +53,10 @@ def export(exportList=None, fileName='', path='', prefix='', suffix='', format='
 
 def getNumberCVs(curve):
     """Return the number of CVs of an input curve"""
-    numSpans = cmds.getAttr (curve + ".spans")
-    degree   = cmds.getAttr (curve + ".degree")
-    form     = cmds.getAttr (curve + ".form")
-    numCVs   = numSpans + degree
+    numSpans = cmds.getAttr(curve + ".spans")
+    degree = cmds.getAttr(curve + ".degree")
+    form = cmds.getAttr(curve + ".form")
+    numCVs = numSpans + degree
     if (form == 2):
         numCVs -= degree
     return numCVs
@@ -95,20 +65,21 @@ def getNumberCVs(curve):
 def getNurbsCVs(surface):
     """Return the number of CVs in U and V of the NURBS surface in argument"""
     numSpansU = cmds.getAttr(surface + ".spansU")
-    degreeU   = cmds.getAttr(surface + ".degreeU")
+    degreeU = cmds.getAttr(surface + ".degreeU")
     numSpansV = cmds.getAttr(surface + ".spansV")
-    degreeV   = cmds.getAttr(surface + ".degreeV")
-    formU     = cmds.getAttr(surface + ".formU")
-    formV     = cmds.getAttr(surface + ".formV")
-    numCVsU   = numSpansU + degreeU
-    #Adjust for periodic hull:
+    degreeV = cmds.getAttr(surface + ".degreeV")
+    formU = cmds.getAttr(surface + ".formU")
+    formV = cmds.getAttr(surface + ".formV")
+    numCVsU = numSpansU + degreeU
+    # Adjust for periodic hull:
     if formU == 2:
         numCVsU -= degreeU
-    numCVsV   = numSpansV + degreeV
-    #Adjust for periodic hull:
+    numCVsV = numSpansV + degreeV
+    # Adjust for periodic hull:
     if formV == 2:
         numCVsV -= degreeV
     return numCVsU, numCVsV
+
 
 def getUDIM(shapes):
     shapesUV = cmds.polyListComponentConversion(shapes, fromFace=True, toUV=True)
@@ -118,7 +89,6 @@ def getUDIM(shapes):
     return [Umin, Vmin]
 
 
-
 def getTransform(shape, fullPath=True):
     """Return the transform of the shape in argument"""
     transforms = ''
@@ -126,7 +96,7 @@ def getTransform(shape, fullPath=True):
         logger.error('Input not valid. Expecting a string shape, got "%s": %s' % (type(shape).__name__, shape))
     elif 'transform' != cmds.nodeType(shape):
         transforms = cmds.listRelatives(shape, fullPath=fullPath, parent=True)
-        transform = getFirstItem(transforms, '')
+        transform = libpython.getFirstItem(transforms, '')
     return transform
 
 
@@ -150,8 +120,9 @@ def getShapes(xform, fullPath=True):
 
 def getTypeNode(nodeType, nodeList):
     """ Return all the nodes of a specific type from a list of node """
-    filterName = cmds.itemFilter(byType=nodeType)
-    return cmds.lsThroughFilter(filterName, item=nodeList)
+    filterName = cmds.itemFilter(byType=nodeType, uniqueNodeNames=True)
+    result = cmds.lsThroughFilter(nodeList, item=filterName)
+    return result
 
 
 def getFirstSelection(filterNb=None, longName=False):
@@ -159,7 +130,16 @@ def getFirstSelection(filterNb=None, longName=False):
     selection = cmds.ls(selection=True, long=longName)
     if filterNb and selection:
         selection = cmds.filterExpand(selection, sm=filterNb)
-    return getFirstItem(selection, '')
+    return libpython.getFirstItem(selection, '')
+
+
+def getNextFreeMultiIndex(nodeattr, start=0, max=10000000):
+    """Get the next available index, usefull for indexMatters(True) nodes like the plusMinusAverage."""
+    for i in xrange(start, max):
+        con = cmds.connectionInfo(nodeattr + "[{}]".format(i), sourceFromDestination=True)
+        if not con:
+            return i
+    return None
 
 
 def isVisible(node):
@@ -176,7 +156,7 @@ def isVisible(node):
     if visible:
         parents = cmds.listRelatives(node, parent=True)
         if parents:
-            visible = isVisible(getFirstItem(parents))
+            visible = isVisible(libpython.getFirstItem(parents))
     return visible
 
 
@@ -203,9 +183,19 @@ def createGroupHierarchy(path):
         tmpPath = tmpPath + '|' + i
 
 
+def isGroup(node):
+    if cmds.nodeType(node) != 'transform':
+        return False
+    childrens = cmds.listRelatives(node, children=True) or []
+    for child in childrens:
+        if cmds.nodeType(child) != 'transform':
+            return False
+    return True
+    
+
 def getEmptyGroups():
     """Return a list of groups with no children"""
-    transforms =  cmds.ls(type='transform')
+    transforms = cmds.ls(type='transform')
     emptyGroups = []
     for tran in transforms:
         if cmds.nodeType(tran) == 'transform':
@@ -218,13 +208,13 @@ def getEmptyGroups():
 def getMaterialFromSG(shadingGroup):
     """Returns the Material node linked to the specified Shading Group node"""
     if cmds.nodeType(shadingGroup) == 'shadingEngine' and cmds.connectionInfo(shadingGroup + '.surfaceShader', isDestination=True):
-        return cmds.connectionInfo(shadingGroup + '.surfaceShader', sourceFromDestination=True).split('.')[0] # Faster than cmds.listConnections(shader, type="lambert")
+        return cmds.connectionInfo(shadingGroup + '.surfaceShader', sourceFromDestination=True).split('.')[0]  # Faster than cmds.listConnections(shader, type="lambert")
     return ''
 
 
 def getSGsFromMaterial(shader):
     if cmds.ls(shader, materials=True):
-        nodes = [i.split('.')[0] for i in cmds.connectionInfo(shader +'.outColor', destinationFromSource=True)]  # Faster than cmds.listConnections(shader, type="shadingEngine")
+        nodes = [i.split('.')[0] for i in cmds.connectionInfo(shader + '.outColor', destinationFromSource=True)]  # Faster than cmds.listConnections(shader, type="shadingEngine")
         shadingGroups = [i for i in nodes if cmds.nodeType(i) == 'shadingEngine']
         return shadingGroups
     return []
@@ -232,12 +222,12 @@ def getSGsFromMaterial(shader):
 
 def getSGsFromShape(shape):
     """Return all the Shading Groups connected to the shape"""
-    shadingEngines = cmds.listSets(object=shape, type=1, extendToShape=True) # Faster than cmds.listConnections(shape, destination=True, source=False, plugs=False, type="shadingEngine")
+    shadingEngines = cmds.listSets(object=shape, type=1, extendToShape=True)  # Faster than cmds.listConnections(shape, destination=True, source=False, plugs=False, type="shadingEngine")
     return list(set(shadingEngines)) if shadingEngines else []
 
 
 def getShaderAssignation(shader):
-    shadingGroups = getSGsFromMaterial(shader) # Add checks?
+    shadingGroups = getSGsFromMaterial(shader)  # Add checks?
     if shadingGroups:
         return cmds.sets(shadingGroups, query=True) or []
     return []
@@ -258,7 +248,6 @@ def copyUV(object, toAssign):
             logger.error('The mesh %s do not share the same topology with %s. Skipped' % (i, object))
 
 
-
 def getReferences(loadState=False, nodesInRef=False):
     """Returns a dictionary with the namespace as keys
     and a list containing the proxyManager if there is one, the refnode, and its load state
@@ -273,9 +262,9 @@ def getReferences(loadState=False, nodesInRef=False):
             proxyManagers.update([connection.split('.')[0]])
         else:
             namespace = cmds.file(i, parentNamespace=True, query=True)[0] + ':' + cmds.file(i, namespace=True, query=True)
-            namespace =  cmds.file(i, namespace=True, query=True)
+            namespace = cmds.file(i, namespace=True, query=True)
             # namespace = ('' if namespace.startswith(':') else ':') + namespace
-            result[namespace] = {'proxyManager': None, 'refNode': refNode}
+            result[i] = {'namespace': namespace, 'proxyManager': None, 'refNode': refNode}
 
     for proxy in proxyManagers:
         connection = cmds.connectionInfo(proxy + '.activeProxy', destinationFromSource=True)
@@ -295,7 +284,8 @@ def getReferences(loadState=False, nodesInRef=False):
 
 
 def getReferences2():
-    """Returns a dictionary with the namespace as keys
+    """OBSOLETE
+    Returns a dictionary with the namespace as keys
     and a list containing the proxyManager if there is one, the refnode, and its load state
     """
     result = dict()
@@ -350,6 +340,71 @@ def loadReferences(references=None):
     for ref in references:
         if not cmds.referenceQuery(ref, isLoaded=True):
             cmds.file(ref, loadReference=True)
+    
+
+def renameReference(reference, name):
+    cmds.file(reference, edit=True, namespace=name)
+    refNode = cmds.file(reference, query=True, referenceNode=True)
+    cmds.lockNode(refNode, lock=False)
+    result = cmds.rename(refNode, name + 'RN')
+    cmds.lockNode(result, lock=True)
+    return result
+    
+
+def fixReferences(padding=3):
+    """Rename namespaces and refnodes accordingly if there is a refnode named RN1/RN2/etc. or if the number of digits in the padding is incorrect, either in namespace or refnode name.
+    Several references share the same namespace and could bring some bugs. Rename with the next incremented number available.
+    """
+    tofix = {}
+    for key, val in getReferences().iteritems():
+        if re.search('RN\d$', val['refNode']):
+            tofix[key] = val
+        elif libpython.rstripAll(val['refNode'], 'RN') != val['namespace']:
+            tofix[key] = val
+        elif padding and not re.search(r'_\d{{{}}}$'.format(padding), val['namespace']):
+            tofix[key] = val
+        elif padding and not re.search(r'_\d{{{}}}RN$'.format(padding), val['refNode']):
+            tofix[key] = val
+
+    for f, values in tofix.iteritems():
+        incremented = values['namespace']
+        namespaces = [i['namespace'] for i in getReferences().values()]
+        while incremented in namespaces:
+            splitted = incremented.split('_')
+            incremented = '_'.join(splitted[:-1]) + '_{:0>3d}'.format(int(splitted[-1]) + 1)
+        else:
+            renameReference(f, incremented)
+    return getReferences()
+
+
+def fixDoubleNamespaces():
+    """Import all elements into existing hierarchy if it already exists. Then delete the namespace and fixReferences()"""
+    namespaces = cmds.namespaceInfo(listOnlyNamespaces=True, recurse=True, fullName=True)
+    namespacesTofix = list(set([i.split(':')[0] for i in namespaces if ':' in i])) # Fix double namespaces
+
+    for namespace in namespacesTofix:
+        content = cmds.namespaceInfo(namespace, listNamespace=True, dagPath=True)
+        tofixList = [i for i in content if cmds.ls(i.replace(namespace + ':', ''))]  # Check if nodes already exists with the same name if we remove the namespace
+
+        tofix = {}
+        for i in tofixList:  # Sort the elements by hierarchy level
+            lenght = len(i.split('|'))
+            try:
+                tofix[lenght].append(i)
+            except KeyError:
+                tofix[lenght] = [i]
+
+        for keys, values in reversed(sorted(tofix.iteritems())):
+            for node in values:
+                if isGroup(node):
+                    childrens = cmds.listRelatives(node, children=True, fullPath=True) or []
+                    for u in childrens:
+                        upperGrp = node.replace(namespace + ':', '')
+                        cmds.parent(u, upperGrp) # parent each child to the original group
+                    cmds.delete(node) # then delete the empty group
+
+        fixReferences()
+        cmds.namespace(removeNamespace=namespace, mergeNamespaceWithRoot=True)
 
 
 def getActiveViewport():
@@ -384,10 +439,10 @@ def loadPlugin(plugin):
         cmds.loadPlugin(plugin, quiet=True)
     pluginList = cmds.pluginInfo(query=True, listPlugins=True)
     if plugin in pluginList:
-        logger.info("Plugin %s correctly loaded" % plugin)
+        logger.info("Plugin {} correctly loaded".format(plugin))
         return True
     else:
-        logger.error("Couldn't load plugin: " % plugin)
+        logger.error("Couldn't load plugin: {}".format(plugin))
         return False
 
 
@@ -417,6 +472,14 @@ def loadTurtle():
     for nodeType, nodeName in turtleNodes.iteritems():
         if not cmds.objExists(nodeName):
             cmds.createNode(nodeType, name=nodeName)
+
+
+def checkPlugins(plugins):
+    """Check if plugin are loaded. """
+    pluginList = cmds.pluginInfo(query=True, listPlugins=True) or []
+    for plugin in plugins:
+        if plugin not in pluginList:
+            loadPlugin(plugin)
 
 
 def createFileNode(name='file'):
@@ -465,91 +528,10 @@ def setAllPanelsToRenderer(renderer, reset=True):
         cmds.ogs(reset=True)
 
 
-
-
-
-
-
-
-
-
-
-
-def getFirstItem(iterable, default=None):
-    """Return the first item if any"""
-    if iterable:
-        for item in iterable:
-            return item
-    return default
-
-def flatten(coll):
-    """Flatten a list while keeping strings"""
-    for i in coll:
-            if isinstance(i, Iterable) and not isinstance(i, basestring):
-                for subc in flatten(i):
-                    yield subc
-            else:
-                yield i
-
-def string2bool(string, strict=True):
-    """Convert a string to its boolean value.
-    The strict argument keep the string if neither True/False are found
-    """
-    if strict:
-        return string == "True"
-    else:
-        if string == 'True':
-            return False
-        elif string == 'False':
-            return True
-        else:
-            return string
-
-def createDir(path):
-    """Creates a directory"""
-    try:
-        os.makedirs(path)
-    except OSError as exception:
-        if exception.errno != errno.EEXIST:
-            raise
-
-def camelCaseSeparator(label, separator=' '):
-    """Convert a CamelCase to words separated by separator"""
-    return re.sub(r'((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))', r'%s\1' % separator, label)
-
-def toNumber(s):
-    """Convert a string to an int or a float depending of their types"""
-    try:
-        return int(s)
-    except ValueError:
-        return float(s)
-
-def replaceExtension(path, ext):
-    if ext and not ext.startswith('.'):
-        ext = ''.join(['.', ext])
-    return path.replace(os.path.splitext(path)[1], ext)
-
-def humansize(nbytes):
-    suffixes = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']
-    if nbytes == 0: return '0 B'
-    i = 0
-    while nbytes >= 1024 and i < len(suffixes)-1:
-        nbytes /= 1024.
-        i += 1
-    f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
-    return '%s %s' % (f, suffixes[i])
-
-def lstripAll(toStrip, stripper):
-    if toStrip.startswith(stripper):
-        return toStrip[len(stripper):]
-    return toStrip
-
-def rstripAll(toStrip, stripper):
-    if toStrip.endswith(stripper):
-        return toStrip[:-len(stripper)]
-    return toStrip
-
-
+def quitMaya(status):
+    """ Quit mayapy so that it can returns an exitcode 0 without crashing."""
+    cmds.file(new=True, force=True)
+    os._exit(status)
 
 
 
@@ -566,12 +548,14 @@ def reSelect(method):
         result = method(*args, **kw)
         if sel:
             cmds.select(sel)
+        return result
     return selected
 
 
 class ReselectContext(object):
     def __enter__(self):
         self.selectionList = cmds.ls(sl=True)
+
     def __exit__(self, *exc_info):
         if self.selectionList:
             cmds.select(self.selectionList)
@@ -580,22 +564,29 @@ class ReselectContext(object):
 #     ... your code here....
 
 
+
 def undoChunk(method):
     """A decorator that create a undo chunk so that everything done in the method will be undone with only one Undo"""
     def undoed(*args, **kw):
+        err = None
         try:
             cmds.undoInfo(openChunk=True)
             result = method(*args, **kw)
         except Exception as err:
-            print err
+            pass
         finally:
             cmds.undoInfo(closeChunk=True)
+        if err:
+            raise err
+        return result
     return undoed
 
 
 class UndoContext(object):
+
     def __enter__(self):
         cmds.undoInfo(openChunk=True)
+
     def __exit__(self, *exc_info):
         cmds.undoInfo(closeChunk=True)
 
@@ -603,32 +594,47 @@ class UndoContext(object):
 #     ... your code here....
 
 
-def withmany(method):
-    """A decorator that iterate through all the elements and eval each one if a list is in input"""
-    def many(many_foos):
-        for foo in many_foos:
-            yield method(foo)
-    method.many = many
-    return method
+def keepNamespace(method):
+    """A decorator that reselect the elements selected prior the execution of the method"""
+    def namespace(*args, **kw):
+        np = cmds.namespaceInfo(currentNamespace=True)
+        result = method(*args, **kw)
+        cmds.namespace(set=np)
+        return result
+    return namespace
 
 
-def memoizeSingle(f):
-    """Memoization decorator for a function taking a single argument"""
-    class memodict(dict):
-        def __missing__(self, key):
-            ret = self[key] = f(key)
-            return ret
-    return memodict().__getitem__
+def handleError(f):
+    """ Decorator used for exiting Mayabatch/py with the corresponding exitcode. """
+    def handleProblems(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception, err:
+            # if cmds.about(batch=True):  # Playblasts are not in batch mode so...
+            logger.critical(err, exc_info=True)
+            quitMayapy(1)
+            # else:
+            #     raise
+    return handleProblems
 
 
-def memoizeSeveral(f):
-    """Memoization decorator for functions taking one or more arguments"""
-    class memodict(dict):
-        def __init__(self, f):
-            self.f = f
-        def __call__(self, *args):
-            return self[args]
-        def __missing__(self, key):
-            ret = self[key] = self.f(*key)
-            return ret
-    return memodict(f)
+def viewportOff(func):
+    """Decorator - turn off Maya display while func is running.
+    if func will fail, the error will be raised after.
+    """
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+
+        # Turn $gMainPane Off:
+        mel.eval("paneLayout -e -manage false $gMainPane")
+
+        # Decorator will try/except running the function.
+        # But it will always turn on the viewport at the end.
+        # In case the function failed, it will prevent leaving maya viewport off.
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            raise # will raise original error
+        finally:
+            mel.eval("paneLayout -e -manage true $gMainPane")
+    return wrap
