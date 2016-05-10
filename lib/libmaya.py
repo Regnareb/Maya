@@ -437,7 +437,7 @@ def loadPlugin(plugin):
         plugMethod[plugin]()
     else:
         cmds.loadPlugin(plugin, quiet=True)
-    pluginList = cmds.pluginInfo(query=True, listPlugins=True)
+    pluginList = cmds.pluginInfo(query=True, listPlugins=True) or []
     if plugin in pluginList:
         logger.info("Plugin {} correctly loaded".format(plugin))
         return True
