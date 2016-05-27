@@ -8,6 +8,8 @@ import libpython
 logger = logging.getLogger(__name__)
 
 
+
+
 def getNewNodesCreated(_function):
     """ Return the new nodes created after the execution of a function """
     before = cmds.ls(long=True)
@@ -191,7 +193,7 @@ def isGroup(node):
         if cmds.nodeType(child) != 'transform':
             return False
     return True
-    
+
 
 def getEmptyGroups():
     """Return a list of groups with no children"""
@@ -200,7 +202,7 @@ def getEmptyGroups():
     for tran in transforms:
         if cmds.nodeType(tran) == 'transform':
             children = cmds.listRelatives(tran, children=True)
-            if children == None:
+            if children is None:
                 emptyGroups.append(tran)
     return emptyGroups
 
@@ -283,35 +285,6 @@ def getReferences(loadState=False, nodesInRef=False):
     return result
 
 
-def getReferences2():
-    """OBSOLETE
-    Returns a dictionary with the namespace as keys
-    and a list containing the proxyManager if there is one, the refnode, and its load state
-    """
-    result = dict()
-    proxyRefs = []
-    references = cmds.ls(references=True)
-    for i in cmds.ls(type='proxyManager'):
-        proxyRefs += cmds.listConnections(i + '.proxyList', source=False)
-        connection = cmds.connectionInfo(i + '.activeProxy', destinationFromSource=True)
-        activeProxy = cmds.listConnections(connection, source=False)[0]
-        namespace = cmds.referenceQuery(activeProxy, namespace=True)
-        isLoaded = cmds.referenceQuery(activeProxy, isLoaded=True)
-        result[namespace] = [i, activeProxy, isLoaded]
-
-    for i in proxyRefs:
-        references.remove(i)
-    for i in references:
-        try:
-            refNode = cmds.referenceQuery(i, referenceNode=True, topReference=True)
-            namespace = cmds.referenceQuery(activeProxy, namespace=True)
-            isLoaded = cmds.referenceQuery(i, isLoaded=True)
-            result[namespace] = [None, refNode, isLoaded]
-        except RuntimeError, e:
-            logger.error(e)
-    return result
-
-
 def listReferences():
     """Returns a dictionary with the path to the ref, its refNode, the nodes contained in the ref, and if the ref is loaded or not"""
     references = cmds.file(query=True, reference=True)
@@ -324,24 +297,6 @@ def listReferences():
     return referencesDict
 
 
-def unloadReferences(references=None):
-    """Unload a list of references passed as argument, or every references if none is passed"""
-    if not references:
-        references = cmds.file(query=True, reference=True)
-    for ref in references:
-        if cmds.referenceQuery(ref, isLoaded=True):
-            cmds.file(ref, unloadReference=True)
-
-
-def loadReferences(references=None):
-    """Load a list of references passed as argument, or every references if none is passed"""
-    if not references:
-        references = cmds.file(query=True, reference=True)
-    for ref in references:
-        if not cmds.referenceQuery(ref, isLoaded=True):
-            cmds.file(ref, loadReference=True)
-    
-
 def renameReference(reference, name):
     cmds.file(reference, edit=True, namespace=name)
     refNode = cmds.file(reference, query=True, referenceNode=True)
@@ -349,9 +304,45 @@ def renameReference(reference, name):
     result = cmds.rename(refNode, name + 'RN')
     cmds.lockNode(result, lock=True)
     return result
-    
 
-def fixReferences(padding=3):
+
+def unloadReferences(references=[]):
+    """Unload a list of references passed as argument, or every references if none is passed"""
+    if not references:
+        references = cmds.file(reference=True, loadReferenceDepth='none')
+    for ref in references:
+        if cmds.referenceQuery(ref, isLoaded=True):
+            cmds.file(ref, unloadReference=True)
+
+
+def loadReferences(references=[]):
+    """Load a list of references passed as argument, or every references if none is passed"""
+    if not references:
+        references = cmds.file(reference=True, loadReferenceDepth='all')
+    for ref in references:
+        if not cmds.referenceQuery(ref, isLoaded=True):
+            cmds.file(ref, loadReference=True)
+
+
+def getIncrementedNamespace(namespace, separator='', padding=None, start=None):
+    regex = '^(.+?){}(\d*)$'.format(re.escape(separator) + '*' if separator else separator)
+    match = re.match(regex, namespace)
+    base, nb = match.groups()
+    if padding is None:
+        padding = len(nb)  # use the initial padding if none is specified in argument
+    if start is not None:
+        nb = start  # force the increment to start at a specific number
+    f = '{}{{:0>{}d}}'.format(separator, padding)
+    namespace = base + f.format(int(nb or 1))
+    namespaces = [i['namespace'] for i in getReferences().values()]
+    while namespace in namespaces:
+        match = re.match(regex, namespace)
+        base, nb = match.groups()
+        namespace = base + f.format(int(nb) + 1)
+    return namespace
+
+
+def fixReferences(padding=3, start=None):
     """Rename namespaces and refnodes accordingly if there is a refnode named RN1/RN2/etc. or if the number of digits in the padding is incorrect, either in namespace or refnode name.
     Several references share the same namespace and could bring some bugs. Rename with the next incremented number available.
     """
@@ -367,20 +358,15 @@ def fixReferences(padding=3):
             tofix[key] = val
 
     for f, values in tofix.iteritems():
-        incremented = values['namespace']
-        namespaces = [i['namespace'] for i in getReferences().values()]
-        while incremented in namespaces:
-            splitted = incremented.split('_')
-            incremented = '_'.join(splitted[:-1]) + '_{:0>3d}'.format(int(splitted[-1]) + 1)
-        else:
-            renameReference(f, incremented)
+        incremented = getIncrementedNamespace(values['namespace'], separator='_', padding=padding, start=start)
+        renameReference(f, incremented)
     return getReferences()
 
 
 def fixDoubleNamespaces():
     """Import all elements into existing hierarchy if it already exists. Then delete the namespace and fixReferences()"""
     namespaces = cmds.namespaceInfo(listOnlyNamespaces=True, recurse=True, fullName=True)
-    namespacesTofix = list(set([i.split(':')[0] for i in namespaces if ':' in i])) # Fix double namespaces
+    namespacesTofix = list(set([i.split(':')[0] for i in namespaces if ':' in i]))  # Fix double namespaces
 
     for namespace in namespacesTofix:
         content = cmds.namespaceInfo(namespace, listNamespace=True, dagPath=True)
@@ -400,8 +386,8 @@ def fixDoubleNamespaces():
                     childrens = cmds.listRelatives(node, children=True, fullPath=True) or []
                     for u in childrens:
                         upperGrp = node.replace(namespace + ':', '')
-                        cmds.parent(u, upperGrp) # parent each child to the original group
-                    cmds.delete(node) # then delete the empty group
+                        cmds.parent(u, upperGrp)  # parent each child to the original group
+                    cmds.delete(node)  # then delete the empty group
 
         fixReferences()
         cmds.namespace(removeNamespace=namespace, mergeNamespaceWithRoot=True)
@@ -539,10 +525,9 @@ def quitMaya(status):
 
 
 
-
-
 def reSelect(method):
     """A decorator that reselect the elements selected prior the execution of the method"""
+    @functools.wraps(method)
     def selected(*args, **kw):
         sel = cmds.ls(sl=True)
         result = method(*args, **kw)
@@ -553,6 +538,7 @@ def reSelect(method):
 
 
 class ReselectContext(object):
+
     def __enter__(self):
         self.selectionList = cmds.ls(sl=True)
 
@@ -564,9 +550,9 @@ class ReselectContext(object):
 #     ... your code here....
 
 
-
 def undoChunk(method):
     """A decorator that create a undo chunk so that everything done in the method will be undone with only one Undo"""
+    @functools.wraps(method)
     def undoed(*args, **kw):
         err = None
         try:
@@ -596,6 +582,7 @@ class UndoContext(object):
 
 def keepNamespace(method):
     """A decorator that reselect the elements selected prior the execution of the method"""
+    @functools.wraps(method)
     def namespace(*args, **kw):
         np = cmds.namespaceInfo(currentNamespace=True)
         result = method(*args, **kw)
@@ -606,6 +593,7 @@ def keepNamespace(method):
 
 def handleError(f):
     """ Decorator used for exiting Mayabatch/py with the corresponding exitcode. """
+    @functools.wraps(f)
     def handleProblems(*args, **kwargs):
         try:
             return f(*args, **kwargs)
@@ -634,7 +622,8 @@ def viewportOff(func):
         try:
             return func(*args, **kwargs)
         except Exception:
-            raise # will raise original error
+            raise  # will raise original error
         finally:
             mel.eval("paneLayout -e -manage true $gMainPane")
+
     return wrap
