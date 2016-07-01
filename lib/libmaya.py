@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import logging
 import functools
 import maya.mel as mel
@@ -7,6 +8,10 @@ import maya.cmds as cmds
 import libpython
 logger = logging.getLogger(__name__)
 
+
+# cmds.ls([None, 'bla'], type='TrucType') # BUG
+# pymel.core.open('', force=True)
+# cmds.getAttr('node.attribute')  # If several nodes have the same name, it will return a list instead of only one element or  crashing
 
 
 
@@ -156,7 +161,7 @@ def isVisible(node):
     except ValueError:
         pass
     if visible:
-        parents = cmds.listRelatives(node, parent=True)
+        parents = cmds.listRelatives(node, parent=True, path=True)
         if parents:
             visible = isVisible(libpython.getFirstItem(parents))
     return visible
@@ -170,6 +175,17 @@ def longNameOf(node):
 def shortNameOf(node):
     """Return the short name of a node"""
     return node.split('|')[-1]
+
+
+def multiParentConstraint(nodes=None, maintainOffset=True, weight=1, skipTranslate=['x', 'y', 'z'], skipRotate=['x', 'y', 'z']):
+    if nodes is None:
+        nodes = cmds.ls(sl=True)
+    source = nodes.pop()
+    cmds.select(clear=True)
+    result = {}
+    for node in nodes:
+       result[node] = cmds.parentConstraint(source, node, maintainOffset=maintainOffset, weight=weight, skipTranslate=skipTranslate, skipRotate=skipRotate)
+    return result
 
 
 def createGroupHierarchy(path):
@@ -188,7 +204,7 @@ def createGroupHierarchy(path):
 def isGroup(node):
     if cmds.nodeType(node) != 'transform':
         return False
-    childrens = cmds.listRelatives(node, children=True) or []
+    childrens = cmds.listRelatives(node, children=True, path=True) or []
     for child in childrens:
         if cmds.nodeType(child) != 'transform':
             return False
@@ -324,6 +340,11 @@ def loadReferences(references=[]):
             cmds.file(ref, loadReference=True)
 
 
+def removeReferences(references=[]):
+    for ref in references:
+        cmds.file(ref, removeReference=True)
+
+
 def getIncrementedNamespace(namespace, separator='', padding=None, start=None):
     regex = '^(.+?){}(\d*)$'.format(re.escape(separator) + '*' if separator else separator)
     match = re.match(regex, namespace)
@@ -357,9 +378,12 @@ def fixReferences(padding=3, start=None):
         elif padding and not re.search(r'_\d{{{}}}RN$'.format(padding), val['refNode']):
             tofix[key] = val
 
+    f = None
     for f, values in tofix.iteritems():
         incremented = getIncrementedNamespace(values['namespace'], separator='_', padding=padding, start=start)
         renameReference(f, incremented)
+    if f:
+        fixReferences(padding=padding, start=start)
     return getReferences()
 
 
@@ -468,6 +492,7 @@ def checkPlugins(plugins):
             loadPlugin(plugin)
 
 
+
 def createFileNode(name='file'):
     texture = cmds.shadingNode('file', asTexture=True)
     placement = cmds.shadingNode('place2dTexture', asUtility=True)
@@ -514,10 +539,25 @@ def setAllPanelsToRenderer(renderer, reset=True):
         cmds.ogs(reset=True)
 
 
-def quitMaya(status):
+def temporise(seconds=30):
+    """Try to let Maya initialise its viewport, to let the assembly load
+    by playing the current frame for the number of seconds passed as arguments."""
+    start = time.time()
+    elapsed = 0
+    current = cmds.currentTime(query=True)
+    while elapsed <= seconds:
+        cmds.currentTime(current)
+        elapsed = time.time() - start
+
+
+def quitMayapy(status):
     """ Quit mayapy so that it can returns an exitcode 0 without crashing."""
     cmds.file(new=True, force=True)
     os._exit(status)
+
+
+def getMayaGlobals(variable):
+    return mel.eval('$dummy = ${}'.format(variable))
 
 
 
@@ -598,11 +638,8 @@ def handleError(f):
         try:
             return f(*args, **kwargs)
         except Exception, err:
-            # if cmds.about(batch=True):  # Playblasts are not in batch mode so...
             logger.critical(err, exc_info=True)
             quitMayapy(1)
-            # else:
-            #     raise
     return handleProblems
 
 
@@ -612,9 +649,12 @@ def viewportOff(func):
     """
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-
-        # Turn $gMainPane Off:
-        mel.eval("paneLayout -e -manage false $gMainPane")
+        try:
+            # Turn $gMainPane Off, only possible in GUI mode
+            cmds.paneLayout(getMayaGlobals('gMainPane'), edit=True, manage=False)
+            disabled = True
+        except:
+            disabled = False
 
         # Decorator will try/except running the function.
         # But it will always turn on the viewport at the end.
@@ -624,6 +664,20 @@ def viewportOff(func):
         except Exception:
             raise  # will raise original error
         finally:
-            mel.eval("paneLayout -e -manage true $gMainPane")
-
+            if disabled:
+                cmds.paneLayout(getMayaGlobals('gMainPane'), edit=True, manage=True)
     return wrap
+
+
+class viewportOffContext(object):
+    def __enter__(self):
+        try:
+            cmds.paneLayout(getMayaGlobals('gMainPane'), edit=True, manage=False)
+            self.disabled = True
+        except:
+            self.disabled = False
+
+    def __exit__(self, *exc_info):
+        if self.disabled:
+            cmds.paneLayout(getMayaGlobals('gMainPane'), edit=True, manage=True)
+
