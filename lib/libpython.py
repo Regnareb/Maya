@@ -2,9 +2,11 @@ import re
 import os
 import sys
 import json
+import time
 import errno
 import pickle
 import logging
+import functools
 import subprocess
 from collections import Iterable
 logger = logging.getLogger(__name__)
@@ -157,6 +159,7 @@ def openfolder(path):
 
 def withmany(method):
     """A decorator that iterate through all the elements and eval each one if a list is in input"""
+    @functools.wraps(method)
     def many(many_foos):
         for foo in many_foos:
             yield method(foo)
@@ -188,3 +191,14 @@ def memoizeSeveral(f):
             ret = self[key] = self.f(*key)
             return ret
     return memodict(f)
+
+
+def elapsedTime(f):
+    @functools.wraps(f)
+    def elapsed(*args, **kwargs):
+        start = time.time()
+        result =  f(*args, **kwargs)
+        elapsed = time.time() - start
+        logger.debug(elapsed)
+        return result
+    return elapsed
