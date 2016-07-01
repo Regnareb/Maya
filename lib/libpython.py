@@ -5,10 +5,13 @@ import json
 import time
 import errno
 import pickle
+import smtplib
 import logging
 import functools
 import subprocess
 from collections import Iterable
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 logger = logging.getLogger(__name__)
 
 
@@ -150,6 +153,27 @@ def openfolder(path):
     elif sys.platform == 'win32':
         path = path.replace('/', '\\')
         return subprocess.Popen(['explorer', path])
+        
+
+def sendMail(sender, receivers, subject, text='', html=''):
+    msg = MIMEMultipart()
+    msg['Subject'] = subject
+    msg['From'] = sender
+    msg['To'] = ', '.join(receivers)
+    text = MIMEText(text, 'plain')
+    html = MIMEText(html, 'html')
+    msg.attach(text)
+    msg.attach(html)
+    try:
+        s = smtplib.SMTP('localhost')
+        s.sendmail(sender, receivers, msg.as_string())
+        s.quit()
+        return True
+    except smtplib.SMTPException:
+        logger.error('Error: unable to send email')
+        return False
+
+
 
 
 
