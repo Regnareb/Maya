@@ -427,10 +427,7 @@ def getActiveViewport():
 
 def getActiveCamera():
     """Return the camera of the active 3D viewport if any"""
-    viewport = getActiveViewport()
-    if viewport:
-        return cmds.modelPanel(viewport, query=True, camera=True)
-    return ''
+    return cmds.lookThru(query=True)
 
 
 def getCameraViewport(viewport):
