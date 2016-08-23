@@ -3,6 +3,7 @@ import re
 import time
 import logging
 import functools
+import contextlib
 import maya.mel as mel
 import maya.cmds as cmds
 import libpython
@@ -29,15 +30,16 @@ def getShaders(listMeshes):
     return cmds.ls(cmds.listConnections(shadingGrps), materials=1)
 
 
-def saveAsCopy(path='', filename=''):
+def saveAsCopy(path):
     """ Save the scene elsewhere while continuing to work on the original path """
     currentname = cmds.file(query=True, sceneName=True)
     head, tail = os.path.split(currentname)
-    if not path:
-        path = head
+    folder, filename = os.path.split(path)
+    if not folder:
+        folder = head
     if not filename:
         filename = tail + '_Copy'
-    filepath = libpython.normpath(os.path.join(path, filename))
+    filepath = libpython.normpath(os.path.join(folder, filename))
     cmds.file(rename=filepath)
     cmds.file(save=True)
     cmds.file(rename=currentname)
@@ -177,7 +179,15 @@ def shortNameOf(node):
     return node.split('|')[-1]
 
 
-def multiParentConstraint(nodes=None, maintainOffset=True, weight=1, skipTranslate=['x', 'y', 'z'], skipRotate=['x', 'y', 'z']):
+def renameDuplicateNodes(nodes):
+    for node in nodes:
+        new = node
+        while cmds.objExists(new):
+            new = libpython.incrementString(shortNameOf(new))
+        cmds.rename(node, new)
+
+
+def multiParentConstraint(nodes=None, maintainOffset=True, weight=1, skipTranslate=[], skipRotate=[]):
     if nodes is None:
         nodes = cmds.ls(sl=True)
     source = nodes.pop()
@@ -197,7 +207,8 @@ def createGroupHierarchy(path):
         else:
             group = cmds.group(empty=True, name=i)
             if tmpPath:
-                cmds.parent(group, tmpPath)
+                parented = cmds.parent(group, tmpPath)
+                cmds.rename(parented, i)
         tmpPath = tmpPath + '|' + i
 
 
@@ -415,6 +426,7 @@ def fixDoubleNamespaces():
 
         fixReferences()
         cmds.namespace(removeNamespace=namespace, mergeNamespaceWithRoot=True)
+    return namespacesTofix
 
 
 def getActiveViewport():
@@ -482,12 +494,15 @@ def loadTurtle():
 
 
 def checkPlugins(plugins):
-    """Check if plugin are loaded. """
+    """Check if plugin are loaded."""
     pluginList = cmds.pluginInfo(query=True, listPlugins=True) or []
     for plugin in plugins:
         if plugin not in pluginList:
             loadPlugin(plugin)
-
+    pluginList = cmds.pluginInfo(query=True, listPlugins=True) or []
+    notloaded = [i for i in plugins if i not in pluginList]
+    if notloaded:
+        raise RuntimeError("Some plugins won't load: {}".format(', '.join(notloaded)))
 
 
 def createFileNode(name='file'):
@@ -640,6 +655,15 @@ def handleError(f):
     return handleProblems
 
 
+@contextlib.contextmanager
+def handleErrorContext():
+    try:
+        yield
+    except Exception, err:
+        logger.critical(err, exc_info=True)
+        quitMayapy(1)
+
+
 def viewportOff(func):
     """Decorator - turn off Maya display while func is running.
     if func will fail, the error will be raised after.
@@ -677,4 +701,3 @@ class viewportOffContext(object):
     def __exit__(self, *exc_info):
         if self.disabled:
             cmds.paneLayout(getMayaGlobals('gMainPane'), edit=True, manage=True)
-
