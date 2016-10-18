@@ -7,12 +7,20 @@ import errno
 import pickle
 import smtplib
 import logging
+import itertools
 import functools
 import subprocess
 from collections import Iterable
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 logger = logging.getLogger(__name__)
+
+
+def pairwise(iterable):
+    """s -> (s0,s1), (s1,s2), (s2, s3), ..."""
+    a, b = itertools.tee(iterable)
+    next(b, None)
+    return itertools.izip(a, b)
 
 
 def pickleObject(fullPath, toPickle):
@@ -30,9 +38,9 @@ def unPickleObject(fullPath):
     return fromPickle
 
 
-def jsonWrite(data, filePath):
+def jsonWrite(data, filePath, default=None):
     with open(filePath, 'w') as outfile:
-        json.dump(data, outfile)
+        json.dump(data, outfile, default=default)
 
 
 def jsonLoad(filePath):
