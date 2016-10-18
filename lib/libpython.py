@@ -48,6 +48,12 @@ def jsonLoad(filePath):
         return json.load(dataFile)
 
 
+def setToList_default(obj):
+    if isinstance(obj, set):
+        return list(obj)
+    raise TypeError
+
+
 def getFirstItem(iterable, default=None):
     """Return the first item if any"""
     if iterable:
@@ -110,6 +116,11 @@ def normpath(path):
     return os.path.normpath(path).replace('\\', '/')
 
 
+def pathjoin(*args):
+    path = os.path.join(*args)
+    return normpath(path)
+
+
 def camelCaseSeparator(label, separator=' '):
     """Convert a CamelCase to words separated by separator"""
     return re.sub(r'((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))', r'%s\1' % separator, label)
@@ -121,6 +132,10 @@ def toNumber(s):
         return int(s)
     except ValueError:
         return float(s)
+
+
+def incrementString(s):
+    return re.sub('(\d*)$', lambda x: str(int(x.group(0)) + 1), s)
 
 
 def replaceExtension(path, ext):
@@ -154,14 +169,23 @@ def rstripAll(toStrip, stripper):
 
 
 def openfolder(path):
-    if sys.platform == 'darwin':
+    if sys.platform.startswith('darwin'):
         return subprocess.Popen(['open', '--', path])
-    elif sys.platform == 'linux2':
+    elif sys.platform.startswith('linux'):
         return subprocess.Popen(['xdg-open', '--', path])
-    elif sys.platform == 'win32':
+    elif sys.platform.startswith('win32'):
         path = path.replace('/', '\\')
         return subprocess.Popen(['explorer', path])
-        
+
+
+def openfile(path):
+    if sys.platform.startswith('darwin'):
+        subprocess.call(('open', path))
+    elif os.name == 'nt':
+        os.startfile(path)
+    elif os.name == 'posix':
+        subprocess.call(('xdg-open', path))
+
 
 def sendMail(sender, receivers, subject, text='', html=''):
     msg = MIMEMultipart()
