@@ -98,6 +98,11 @@ def getUDIM(shapes):
     return [Umin, Vmin]
 
 
+def uvToUdim(uv):
+    neg = -10 if uv[1] < 0 else 0
+    return int(1000 + (int(uv[1]) * 10) + (uv[0] + 1)) + neg
+
+
 def getTransform(shape, fullPath=True):
     """Return the transform of the shape in argument"""
     transforms = ''
@@ -234,6 +239,37 @@ def getEmptyGroups():
     return emptyGroups
 
 
+def getAllAscendantConnections(nodes):
+    # Faire une pile structure | list .pop() pour optimiser.
+    parents = list(set(cmds.listConnections(nodes, source=False)))
+    if len(nodes) != len(parents):
+        parents = getAllAscendantConnections(parents)
+    return parents
+
+
+def getReferencesConnections(refNodes=[]):
+    result = {}
+    refs = getReferences(nodesInRef=True)
+    for i in refs.values():
+        if refNodes and i['refNode'] not in refNodes:
+            continue
+        curves = cmds.ls(i['nodesInRef'], type='nurbsCurve', long=True)
+        curves = getTransforms(curves)
+        try:
+            parents = getAllAscendantConnections(curves)
+            parents = cmds.ls(parents, type='transform', long=True)
+            parents = [u for u in parents if cmds.referenceQuery(u, isNodeReferenced=True)]
+            for parent in parents:
+                if i['refNode'] != cmds.referenceQuery(parent, referenceNode=True):
+                    result.setdefault(i['refNode'], set()).add(cmds.referenceQuery(parent, referenceNode=True))
+        except TypeError:
+            pass
+    for i in result:
+        result[i] = list(result[i])
+
+    return result
+
+
 def getMaterialFromSG(shadingGroup):
     """Returns the Material node linked to the specified Shading Group node"""
     if cmds.nodeType(shadingGroup) == 'shadingEngine' and cmds.connectionInfo(shadingGroup + '.surfaceShader', isDestination=True):
@@ -307,7 +343,7 @@ def getReferences(loadState=False, nodesInRef=False):
             isLoaded = cmds.referenceQuery(result[ref]['refNode'], isLoaded=True)
             result[ref]['isLoaded'] = isLoaded
         if nodesInRef:
-            nodes = cmds.referenceQuery(result[ref]['refNode'], nodes=True)
+            nodes = cmds.referenceQuery(result[ref]['refNode'], nodes=True, dagPath=True)
             result[ref]['nodesInRef'] = nodes
     return result
 
@@ -374,10 +410,7 @@ def getIncrementedNamespace(namespace, separator='', padding=None, start=None):
     return namespace
 
 
-def fixReferences(padding=3, start=None):
-    """Rename namespaces and refnodes accordingly if there is a refnode named RN1/RN2/etc. or if the number of digits in the padding is incorrect, either in namespace or refnode name.
-    Several references share the same namespace and could bring some bugs. Rename with the next incremented number available.
-    """
+def checkReferences(padding=3):
     tofix = {}
     for key, val in getReferences().iteritems():
         if re.search('RN\d$', val['refNode']):
@@ -388,7 +421,14 @@ def fixReferences(padding=3, start=None):
             tofix[key] = val
         elif padding and not re.search(r'_\d{{{}}}RN$'.format(padding), val['refNode']):
             tofix[key] = val
+    return tofix
 
+
+def fixReferences(padding=3, start=None):
+    """Rename namespaces and refnodes accordingly if there is a refnode named RN1/RN2/etc. or if the number of digits in the padding is incorrect, either in namespace or refnode name.
+    Several references share the same namespace and could bring some bugs. Rename with the next incremented number available.
+    """
+    tofix = checkReferences(padding)
     f = None
     for f, values in tofix.iteritems():
         incremented = getIncrementedNamespace(values['namespace'], separator='_', padding=padding, start=start)
@@ -427,6 +467,17 @@ def fixDoubleNamespaces():
         fixReferences()
         cmds.namespace(removeNamespace=namespace, mergeNamespaceWithRoot=True)
     return namespacesTofix
+
+
+def getNestedNamespaces(levels, strict=False):
+    namespaces = cmds.namespaceInfo(listOnlyNamespaces=True, recurse=True, fullName=True)
+    result = []
+    for namespace in namespaces:
+        if strict and namespace.count(':') == levels:
+            result.append(namespace)
+        elif not strict and namespace.count(':') >= levels:
+            result.append(namespace)
+    return result
 
 
 def getActiveViewport():
@@ -544,7 +595,7 @@ def setAllPanelsToRenderer(renderer, reset=True):
     """Set all the models panels to the specified renderer. It will do a reset of everything regarding the Viewport 2.0 if no model panels use it.
     Possible values: base_OpenGL_Renderer, hwRender_OpenGL_Renderer, vp2Renderer
     """
-    modelPanels = cmds.getPanel(type='modelPanel')
+    modelPanels = cmds.getPanel(type='modelPanel') or []
     for panel in modelPanels:
         cmds.modelEditor(panel, edit=True, rendererName=renderer)
     if reset or os.environ.get('MAYA_DISABLE_VP2_WHEN_POSSIBLE', False):
@@ -563,7 +614,7 @@ def temporise(seconds=30):
 
 
 def quitMayapy(status):
-    """ Quit mayapy so that it can returns an exitcode 0 without crashing."""
+    """ Quit mayapy so that it can return an exitcode 0 without crashing."""
     cmds.file(new=True, force=True)
     os._exit(status)
 
