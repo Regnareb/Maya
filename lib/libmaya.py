@@ -240,11 +240,12 @@ def getEmptyGroups():
 
 
 def getAllAscendantConnections(nodes):
-    # Faire une pile structure | list .pop() pour optimiser.
-    parents = list(set(cmds.listConnections(nodes, source=False)))
-    if len(nodes) != len(parents):
-        parents = getAllAscendantConnections(parents)
-    return parents
+    ancestors = set()
+    while nodes:
+        ancestors.update(nodes)
+        parents = cmds.listConnections(nodes, source=False)
+        nodes = list(set(parents) - ancestors)
+    return list(ancestors)
 
 
 def getReferencesConnections(refNodes=[]):
@@ -690,6 +691,20 @@ def keepNamespace(method):
         np = cmds.namespaceInfo(currentNamespace=True)
         result = method(*args, **kw)
         cmds.namespace(set=np)
+        return result
+    return namespace
+
+
+def keepTimeline(method):
+    """A decorator that keep the timeline settings - min/max/submin/submax"""
+    @functools.wraps(method)
+    def namespace(*args, **kw):
+        minTime = cmds.playbackOptions(minTime=True, query=True)
+        maxTime = cmds.playbackOptions(maxTime=True, query=True)
+        animationStartTime = cmds.playbackOptions(animationStartTime=True, query=True)
+        animationEndTime = cmds.playbackOptions(animationEndTime=True, query=True)
+        result = method(*args, **kw)
+        cmds.playbackOptions(minTime=minTime, maxTime=maxTime, animationStartTime=animationStartTime, animationEndTime=animationEndTime)
         return result
     return namespace
 
