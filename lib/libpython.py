@@ -79,11 +79,11 @@ def string2bool(string, strict=True):
     if not isinstance(string, basestring):
         return string
     if strict:
-        return string == "True"
+        return string.capitalize() == 'True'
     else:
-        if string == 'True':
+        if string.capitalize() == 'True':
             return False
-        elif string == 'False':
+        elif string.capitalize() == 'False':
             return True
         else:
             return string
@@ -258,3 +258,15 @@ def elapsedTime(f):
         logger.debug(elapsed)
         return result
     return elapsed
+
+
+def restoreEnvironment(f):
+    @functools.wraps(f)
+    def func(*args, **kwargs):
+        old = os.environ.copy()
+        result =  f(*args, **kwargs)
+        os.environ.update(old)
+        return result
+    return func
+
+
