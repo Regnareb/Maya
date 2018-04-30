@@ -1,4 +1,4 @@
-lib.lib as tdLib
+import lib.libmaya as libmaya
 
 def getEdits(refNode):
     editCommands = ['disconnectAttr', 'setAttr', 'connectAttr']
@@ -7,7 +7,7 @@ def getEdits(refNode):
         val[:] = list(set(cmds.referenceQuery(refNode, editStrings=True, editCommand=key, showDagPath=False)))
     return refEdits
 
-references = tdLib.getReferences(True)
+references = libmaya.getReferences(True)
 ref = references['Yourref']
 ref['editsRef'] = getEdits(ref['refNode'])
 
