@@ -535,14 +535,19 @@ def loadMayatomr():
 
 
 def loadTurtle():
+    """Turtle fail to load if loaded by script, this fixes it by creating the nodes and connexions."""
     cmds.loadPlugin('Turtle', quiet=True)
+    cmds.setAttr("defaultRenderGlobals.currentRenderer", "turtle", type="string")
     turtleNodes = {'ilrUIOptionsNode': 'TurtleUIOptions',
                    'ilrBakeLayerManager': 'TurtleBakeLayerManager',
                    'ilrBakeLayer': 'TurtleDefaultBakeLayer',
                    'ilrOptionsNode': 'TurtleRenderOptions'}
     for nodeType, nodeName in turtleNodes.iteritems():
-        if not cmds.objExists(nodeName):
-            cmds.createNode(nodeType, name=nodeName)
+        if not cmds.objExists(nodeName) or nodeType != cmds.nodeType(nodeName):
+            turtleNodes[nodeType] = cmds.createNode(nodeType, name=nodeName)
+    cmds.connectAttr(turtleNodes['ilrOptionsNode']+'.message', turtleNodes['ilrBakeLayer']+'.renderOptions')
+    cmds.connectAttr(turtleNodes['ilrBakeLayer']+'.index', turtleNodes['ilrBakeLayerManager']+'.bakeLayerId[0]')
+    return turtleNodes
 
 
 def checkPlugins(plugins):
