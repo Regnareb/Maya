@@ -545,8 +545,12 @@ def loadTurtle():
     for nodeType, nodeName in turtleNodes.iteritems():
         if not cmds.objExists(nodeName) or nodeType != cmds.nodeType(nodeName):
             turtleNodes[nodeType] = cmds.createNode(nodeType, name=nodeName)
-    cmds.connectAttr(turtleNodes['ilrOptionsNode']+'.message', turtleNodes['ilrBakeLayer']+'.renderOptions')
-    cmds.connectAttr(turtleNodes['ilrBakeLayer']+'.index', turtleNodes['ilrBakeLayerManager']+'.bakeLayerId[0]')
+    try:
+        cmds.connectAttr(turtleNodes['ilrOptionsNode']+'.message', turtleNodes['ilrBakeLayer']+'.renderOptions')
+        cmds.connectAttr(turtleNodes['ilrBakeLayer']+'.index', turtleNodes['ilrBakeLayerManager']+'.bakeLayerId[0]')
+    except RuntimeError:
+        logger.debug('Turtle nodes already connected.')
+        
     return turtleNodes
 
 
