@@ -135,6 +135,17 @@ def toNumber(s):
         return float(s)
 
 
+def shorten_string(string, maxlimit, separator='.. '):
+    if len(string) <= maxlimit:
+        return string
+    elif len(string) <= len(separator) + 2:
+        return string[:maxlimit - 2] + '..'
+    else:
+        beginning = int(math.ceil(maxlimit / 2.))
+        end = (maxlimit - beginning) * - 1
+        return (string[:beginning] + separator + string[end:]) if len(string) > maxlimit else string
+
+
 def incrementString(s):
     return re.sub('(\d*)$', lambda x: str(int(x.group(0)) + 1), s)
 
