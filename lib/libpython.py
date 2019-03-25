@@ -5,6 +5,7 @@ import json
 import time
 import errno
 import pickle
+import inspect
 import smtplib
 import logging
 import itertools
@@ -270,3 +271,11 @@ def restoreEnvironment(f):
     return func
 
 
+def decorateall(decorator):
+    #Decorate all methods of the class with the decorator passed as argument (Python 3)
+    def decorate(cls):
+        for name, fn in inspect.getmembers(cls, inspect.isroutine):
+            if name != '__new__':
+                setattr(cls, name, decorator(fn))
+        return cls
+    return decorate
