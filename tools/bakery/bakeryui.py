@@ -1,3 +1,20 @@
+"""
+You can render your texture on the renderfarm while still continuing to work on your scene, the texture being loaded as soon as its done or a notification or email is being sent to you.
+Perfect if you don't want Turtle/Mental Ray/any renderer to pollute your scene with their filthy nodes everywhere as it can causes bugs and performances problems on the long term. You have your work environment without renderer and the baking environment with the renderer loaded to prevent that to happen
+Create optimized scenes with only the meshes it needs
+You can basically "threads" a lot of actions this way
+
+
+Tool for baking textures in parallel so that Maya doesn't freeze during the operation. It can be applied to a lot of other tasks
+
+No Mentalray/Turtle/etc. nodes polluting the whole pipeline
+No crash while baking
+Faster baking times with automatically optimized scenes
+Can continue to work on the scene while baking and easier iterations
+
+"""
+
+
 import os
 import logging
 import functools
