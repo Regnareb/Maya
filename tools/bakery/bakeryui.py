@@ -2,15 +2,16 @@ import os
 import logging
 import functools
 import webbrowser
-from PySide import QtCore, QtGui
-import lib.qtwrapper as qtwrapper
+from PySide2 import QtCore, QtGui, QtWidgets
+import shiboken2
+import maya.OpenMayaUI as mui
 import bakery as b
 import lib.tdLib as tdLib
 
 logger = logging.getLogger(__name__)
 
 
-class FloatSlider(QtGui.QSlider):
+class FloatSlider(QtWidgets.QSlider):
     """Create a slider able to return floats as a value."""
     def __init__(self, parent, decimals=3, *args, **kargs):
         super(FloatSlider, self).__init__(parent, *args, **kargs)
@@ -32,7 +33,7 @@ class FloatSlider(QtGui.QSlider):
 
 
 
-class RowLayout(QtGui.QHBoxLayout):
+class RowLayout(QtWidgets.QHBoxLayout):
     """An object where you are able to add different UI elements easily and automatically."""
     def __init__(self, parent=None):
         super(RowLayout, self).__init__()
@@ -48,7 +49,7 @@ class RowLayout(QtGui.QHBoxLayout):
         self.separators = []
 
     def addLabel(self, text=''):
-        self.label = QtGui.QLabel(self.parent)
+        self.label = QtWidgets.QLabel(self.parent)
         self.label.setText(text)
         self.label.setMinimumSize(QtCore.QSize(125, 19))
         self.label.setMaximumSize(QtCore.QSize(125, 16777215))
@@ -56,23 +57,23 @@ class RowLayout(QtGui.QHBoxLayout):
         self.addWidget(self.label)
 
     def addSpacer(self):
-        self.spacer = QtGui.QSpacerItem(0, 0, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
+        self.spacer = QtWidgets.QSpacerItem(0, 0, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.spacers.append(self.spacer)
         self.addItem(self.spacer)
         return self.spacer
 
     def addField(self, validator='', minimum=None, maximum=None, decimals=3):
         if validator == 'float':
-            self.field = QtGui.QDoubleSpinBox(self.parent)
+            self.field = QtWidgets.QDoubleSpinBox(self.parent)
             self.field.setDecimals(decimals)
             self.field.setSingleStep(0.5)
-            self.field.setCorrectionMode(QtGui.QAbstractSpinBox.CorrectToNearestValue)
+            self.field.setCorrectionMode(QtWidgets.QAbstractSpinBox.CorrectToNearestValue)
         else:
-            self.field = QtGui.QSpinBox(self.parent)
+            self.field = QtWidgets.QSpinBox(self.parent)
         self.field.setAccelerated(True)
         self.field.setMinimumSize(QtCore.QSize(70, 0))
         self.field.setMaximumSize(QtCore.QSize(70, 16777215))
-        self.field.setButtonSymbols(QtGui.QAbstractSpinBox.NoButtons)
+        self.field.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
         if minimum:
             self.field.setMinimum(minimum)
         if maximum:
@@ -85,7 +86,7 @@ class RowLayout(QtGui.QHBoxLayout):
         if mode == 'float':
             self.slider = FloatSlider(self.parent)
         else:
-            self.slider = QtGui.QSlider(self.parent)
+            self.slider = QtWidgets.QSlider(self.parent)
         self.slider.setOrientation(QtCore.Qt.Horizontal)
         if minimum is not None:
             self.slider.setMinimum(minimum)
@@ -96,7 +97,7 @@ class RowLayout(QtGui.QHBoxLayout):
         return self.slider
 
     def addCombobox(self, items=[]):
-        self.combobox = QtGui.QComboBox(self.parent)
+        self.combobox = QtWidgets.QComboBox(self.parent)
         for item in items:
             self.combobox.addItem(item)
         self.comboboxes.append(self.combobox)
@@ -104,20 +105,20 @@ class RowLayout(QtGui.QHBoxLayout):
         return self.combobox
 
     def addToolbutton(self):
-        self.toolbutton = QtGui.QToolButton(self.parent)
+        self.toolbutton = QtWidgets.QToolButton(self.parent)
         self.toolbuttons.append(self.toolbutton)
         self.addWidget(self.toolbutton)
         return self.toolbutton
 
     def addCheckbox(self, state=False):
-        self.checkbox = QtGui.QCheckBox(self.parent)
+        self.checkbox = QtWidgets.QCheckBox(self.parent)
         self.checkbox.setCheckState(QtCore.Qt.Checked if state else QtCore.Qt.Unchecked)
         self.checkboxes.append(self.checkbox)
         self.addWidget(self.checkbox)
         return self.checkbox
 
     def addButton(self, label='', size=None):
-        self.button = QtGui.QPushButton(self.parent)
+        self.button = QtWidgets.QPushButton(self.parent)
         self.button.setText(label)
         if size:
             self.button.setMaximumSize(QtCore.QSize(size, size))
@@ -126,18 +127,18 @@ class RowLayout(QtGui.QHBoxLayout):
         return self.button
 
     def addSeparator(self):
-        self.separator = QtGui.QFrame(self.parent)
-        self.separator.setFrameShape(QtGui.QFrame.HLine)
-        self.separator.setFrameShadow(QtGui.QFrame.Sunken)
+        self.separator = QtWidgets.QFrame(self.parent)
+        self.separator.setFrameShape(QtWidgets.QFrame.HLine)
+        self.separator.setFrameShadow(QtWidgets.QFrame.Sunken)
         self.separators.append(self.separator)
         self.addWidget(self.separator)
         return self.separator
 
     def createValidator(self, validator, minimum=None, maximum=None, decimals=3):
         if validator == 'int':
-            self.field.setValidator(QtGui.QIntValidator(minimum, maximum, self))
+            self.field.setValidator(QtWidgets.QIntValidator(minimum, maximum, self))
         elif validator == 'float':
-            self.field.setValidator(QtGui.QDoubleValidator(minimum, maximum, decimals, self))
+            self.field.setValidator(QtWidgets.QDoubleValidator(minimum, maximum, decimals, self))
         else:
             return False
         return True
@@ -209,25 +210,25 @@ class BakeryUI(object):
 
     def setupUi(self):
         """Create all the UI elements"""
-        self.window = QtGui.QMainWindow(self.MainWindow)
+        self.window = QtWidgets.QMainWindow(self.MainWindow)
         self.window.closeEvent = self.closeEvent
         self.window.setStyleSheet("QToolTip {font-size:9pt;padding:2px}");
-        self.centralwidget = QtGui.QWidget(self.window)
+        self.centralwidget = QtWidgets.QWidget(self.window)
         self.centralwidget.setMinimumWidth(350)
-        self.verticalLayout = QtGui.QVBoxLayout(self.centralwidget)
+        self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
 
-        self.interface['maintabs']['layout'] = QtGui.QHBoxLayout()
-        self.interface['maintabs']['buttonGroup'] = QtGui.QButtonGroup()
-        self.interface['maintabs']['occlusion'] = QtGui.QPushButton(self.centralwidget)
+        self.interface['maintabs']['layout'] = QtWidgets.QHBoxLayout()
+        self.interface['maintabs']['buttonGroup'] = QtWidgets.QButtonGroup()
+        self.interface['maintabs']['occlusion'] = QtWidgets.QPushButton(self.centralwidget)
         self.interface['maintabs']['occlusion'].setMinimumSize(QtCore.QSize(0, 30))
         self.interface['maintabs']['occlusion'].setMaximumSize(QtCore.QSize(16777215, 16777215))
-        self.interface['maintabs']['thickness'] = QtGui.QPushButton(self.centralwidget)
+        self.interface['maintabs']['thickness'] = QtWidgets.QPushButton(self.centralwidget)
         self.interface['maintabs']['thickness'].setMinimumSize(QtCore.QSize(0, 30))
         self.interface['maintabs']['thickness'].setMaximumSize(QtCore.QSize(16777215, 16777215))
-        self.interface['maintabs']['dirt'] = QtGui.QPushButton(self.centralwidget)
+        self.interface['maintabs']['dirt'] = QtWidgets.QPushButton(self.centralwidget)
         self.interface['maintabs']['dirt'].setMinimumSize(QtCore.QSize(0, 30))
         self.interface['maintabs']['dirt'].setMaximumSize(QtCore.QSize(16777215, 16777215))
-        self.interface['maintabs']['rgb'] = QtGui.QPushButton(self.centralwidget)
+        self.interface['maintabs']['rgb'] = QtWidgets.QPushButton(self.centralwidget)
         self.interface['maintabs']['rgb'].setMinimumSize(QtCore.QSize(0, 30))
         self.interface['maintabs']['rgb'].setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.interface['maintabs']['occlusion'].clicked.connect(lambda: self.addShaders('OCC'))
@@ -244,23 +245,23 @@ class BakeryUI(object):
         self.interface['maintabs']['layout'].addWidget(self.interface['maintabs']['rgb'])
         self.verticalLayout.addLayout(self.interface['maintabs']['layout'])
 
-        self.interface['attributes']['layout'] = QtGui.QVBoxLayout()
+        self.interface['attributes']['layout'] = QtWidgets.QVBoxLayout()
         self.verticalLayout.addLayout(self.interface['attributes']['layout'])
 
-        self.interface['finalbuttons']['layout'] = QtGui.QHBoxLayout()
-        self.interface['finalbuttons']['preview'] = QtGui.QPushButton(self.centralwidget)
+        self.interface['finalbuttons']['layout'] = QtWidgets.QHBoxLayout()
+        self.interface['finalbuttons']['preview'] = QtWidgets.QPushButton(self.centralwidget)
         self.interface['finalbuttons']['preview'].setMinimumSize(QtCore.QSize(150, 40))
         self.interface['finalbuttons']['preview'].clicked.connect(self.preview)
         self.interface['finalbuttons']['layout'].addWidget(self.interface['finalbuttons']['preview'])
-        self.interface['finalbuttons']['interactivebake'] = QtGui.QPushButton(self.centralwidget)
+        self.interface['finalbuttons']['interactivebake'] = QtWidgets.QPushButton(self.centralwidget)
         self.interface['finalbuttons']['interactivebake'].setMinimumSize(QtCore.QSize(-20, 40))
         self.interface['finalbuttons']['interactivebake'].clicked.connect(self.bakeInteractive)
         self.interface['finalbuttons']['layout'].addWidget(self.interface['finalbuttons']['interactivebake'])
-        self.interface['finalbuttons']['bake'] = QtGui.QPushButton(self.centralwidget)
+        self.interface['finalbuttons']['bake'] = QtWidgets.QPushButton(self.centralwidget)
         self.interface['finalbuttons']['bake'].setMinimumSize(QtCore.QSize(150, 40))
         self.interface['finalbuttons']['bake'].clicked.connect(self.bake)
         self.interface['finalbuttons']['layout'].addWidget(self.interface['finalbuttons']['bake'])
-        self.interface['finalbuttons']['spacer'] = QtGui.QSpacerItem(0, 0, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.interface['finalbuttons']['spacer'] = QtWidgets.QSpacerItem(0, 0, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.verticalLayout.addLayout(self.interface['finalbuttons']['layout'])
         self.verticalLayout.addItem(self.interface['finalbuttons']['spacer'])
         self.interface['maintabs']['layout'].setSpacing(0)
@@ -282,19 +283,19 @@ class BakeryUI(object):
         def savedockposition(area):
             area = tdLib.camelCaseSeparator(str(area).split('.')[-1]).split(' ')[0]
             self.settings.setValue('DockPosition', area)
-        self.interface['shaders']['groupbox'] = QtGui.QWidget(self.centralwidget)
-        self.interface['shaders']['layout'] = QtGui.QVBoxLayout(self.centralwidget)
+        self.interface['shaders']['groupbox'] = QtWidgets.QWidget(self.centralwidget)
+        self.interface['shaders']['layout'] = QtWidgets.QVBoxLayout(self.centralwidget)
         self.interface['shaders']['groupbox'].setLayout(self.interface['shaders']['layout'])
-        self.interface['shaders']['buttonGroup'] = QtGui.QButtonGroup()
+        self.interface['shaders']['buttonGroup'] = QtWidgets.QButtonGroup()
         self.interface['shaders']['buttonGroup'].setExclusive(False)
         self.verticalLayout.addWidget(self.interface['shaders']['groupbox'])
-        self.interface['shaders']['spacer'] = QtGui.QSpacerItem(0, 0, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.interface['shaders']['spacer'] = QtWidgets.QSpacerItem(0, 0, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.interface['shaders']['layout'].addItem(self.interface['shaders']['spacer'])
 
-        self.dock = QtGui.QDockWidget('Shaders', self.centralwidget)
+        self.dock = QtWidgets.QDockWidget('Shaders', self.centralwidget)
         self.dock.dockLocationChanged.connect(savedockposition)
         self.dock.setMinimumWidth(300)
-        self.dock.setFeatures(QtGui.QDockWidget.DockWidgetMovable | QtGui.QDockWidget.DockWidgetFloatable)
+        self.dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         area = self.settings.value('DockPosition') or 'Right'
         self.window.addDockWidget(getattr(QtCore.Qt.DockWidgetArea, area + 'DockWidgetArea'), self.dock)
         self.dock.setWidget(self.interface['shaders']['groupbox'])
@@ -306,7 +307,7 @@ class BakeryUI(object):
                 titl = ''.join([title, ' (Default)'])
             else:
                 titl = title
-            action = QtGui.QAction(QtGui.QIcon(''), titl, self.window)
+            action = QtWidgets.QAction(QtGui.QIcon(''), titl, self.window)
             action.setCheckable(True)
             if not titl:
                 action.setSeparator(True)
@@ -338,7 +339,7 @@ class BakeryUI(object):
         for item in supaDict['order']:
             self.menubar[item] = {}
             menu = self.window.menuBar().addMenu(item.title())
-            group = QtGui.QActionGroup(self.window)
+            group = QtWidgets.QActionGroup(self.window)
             for pres in supaDict[item]['prefs']:
                 title = pres[0]
                 value = pres[1]
@@ -397,9 +398,9 @@ class BakeryUI(object):
             self.interface[mode]['udims'].addLabel('UDIMs')
             self.interface[mode]['udims'].addToolbutton()
             self.interface[mode]['udims'].addSpacer()
-            self.interface[mode]['udims'].toolmenu = QtGui.QMenu(self.centralwidget)
+            self.interface[mode]['udims'].toolmenu = QtWidgets.QMenu(self.centralwidget)
             self.interface[mode]['udims'].toolbutton.setMenu(self.interface[mode]['udims'].toolmenu)
-            self.interface[mode]['udims'].toolbutton.setPopupMode(QtGui.QToolButton.InstantPopup)
+            self.interface[mode]['udims'].toolbutton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
             self.interface[mode]['udims'].hide()
             self.interface['attributes']['layout'].addLayout(self.interface[mode]['udims'])
 
@@ -451,7 +452,7 @@ class BakeryUI(object):
                                 'RGB': []}
         rowOrder = ['label', 'field', 'slider', 'combobox', 'checkbox', 'spacer', 'separator']
 
-        self.interface['attributes']['spacer'] = QtGui.QSpacerItem(0, 5, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
+        self.interface['attributes']['spacer'] = QtWidgets.QSpacerItem(0, 5, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.interface['attributes']['layout'].addItem(self.interface['attributes']['spacer'])
 
         # create rows automatically
@@ -472,18 +473,18 @@ class BakeryUI(object):
             # add to layout
             for elem in self.attributesOrder[mode]:
                 self.interface['attributes']['layout'].addLayout(self.interface[mode][elem])
-                self.interface[mode][elem].setText([QtGui.QApplication.translate("MainWindow", tdLib.camelCaseSeparator(elem).title(), None, QtGui.QApplication.UnicodeUTF8)])
+                self.interface[mode][elem].setText([QtWidgets.QApplication.translate("MainWindow", tdLib.camelCaseSeparator(elem).title(), None)])
 
         self.interface['attributes']['layout'].addItem(self.interface['attributes']['spacer'])
 
     def updateFinalButtons(self):
         """Update the text of the Preview and Bake buttons depending if there is a shader selected or none, or no shaders in the engine."""
         if self._currentShaderButton:
-            self.interface['finalbuttons']['preview'].setText(QtGui.QApplication.translate("MainWindow", "Preview", None, QtGui.QApplication.UnicodeUTF8))
-            self.interface['finalbuttons']['bake'].setText(QtGui.QApplication.translate("MainWindow", "Bake", None, QtGui.QApplication.UnicodeUTF8))
+            self.interface['finalbuttons']['preview'].setText(QtWidgets.QApplication.translate("MainWindow", "Preview", None))
+            self.interface['finalbuttons']['bake'].setText(QtWidgets.QApplication.translate("MainWindow", "Bake", None))
         elif self.Bakery.shaders:
-            self.interface['finalbuttons']['preview'].setText(QtGui.QApplication.translate("MainWindow", "Preview All", None, QtGui.QApplication.UnicodeUTF8))
-            self.interface['finalbuttons']['bake'].setText(QtGui.QApplication.translate("MainWindow", "Bake All", None, QtGui.QApplication.UnicodeUTF8))
+            self.interface['finalbuttons']['preview'].setText(QtWidgets.QApplication.translate("MainWindow", "Preview All", None))
+            self.interface['finalbuttons']['bake'].setText(QtWidgets.QApplication.translate("MainWindow", "Bake All", None))
 
         if not self.Bakery.turtle:
             self.interface['finalbuttons']['preview'].setDisabled(True)
@@ -568,8 +569,8 @@ class BakeryUI(object):
         """Create the layout/label/field/button of the shader"""
         tooltip = "The final name of the file.\nDon't forget to replace this if you have the same shaders several times in the same mode, otherwise it will overwrite the file over and over."
         colors = {'OCC': '#317531', 'THICK': '#a50', 'DIRT': '#05a', 'RGB': '#B73D66' }
-        layout = QtGui.QHBoxLayout()
-        button = QtGui.QPushButton(self.centralwidget)
+        layout = QtWidgets.QHBoxLayout()
+        button = QtWidgets.QPushButton(self.centralwidget)
         button.shader = shader # Save the shader in the button to be able to accesss it easily elsewhere
         button.setFlat(True)
         button.setText(shader.mode)
@@ -580,12 +581,12 @@ class BakeryUI(object):
         self.window.setStyleSheet("QPushButton:checked {border:none;padding:4px}");
         self.updateShaderTooltip(button)
         self.interface['shaders']['buttonGroup'].addButton(button)
-        field = QtGui.QLineEdit(self.centralwidget)
+        field = QtWidgets.QLineEdit(self.centralwidget)
         field.setText(shader.fileName)
         field.textChanged.connect(shader.setFilename)
         field.setToolTip(tooltip)
         field.setStatusTip(tooltip)
-        delete = QtGui.QPushButton(self.centralwidget)
+        delete = QtWidgets.QPushButton(self.centralwidget)
         delete.clicked.connect(lambda: self.deleteShader(shader))
         delete.setText(' X ')
         delete.setFlat(True)
@@ -597,8 +598,8 @@ class BakeryUI(object):
 
         # Add right click menu on the shader button for copy paste
         button.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-        copyAttr = QtGui.QAction(button)
-        pasteAttr = QtGui.QAction(button)
+        copyAttr = QtWidgets.QAction(button)
+        pasteAttr = QtWidgets.QAction(button)
         copyAttr.setText('Copy')
         pasteAttr.setText('Paste')
         copyAttr.triggered.connect(functools.partial(self.copyAttributes, shader))
@@ -607,7 +608,7 @@ class BakeryUI(object):
         button.addAction(pasteAttr)
 
         for widget in [button, field, delete]: # Configure and run the animation
-            effect = QtGui.QGraphicsOpacityEffect(widget)
+            effect = QtWidgets.QGraphicsOpacityEffect(widget)
             widget.setGraphicsEffect(effect)
             ag = QtCore.QSequentialAnimationGroup(widget)
             anim = fade(effect, 1000)
@@ -720,7 +721,7 @@ class BakeryUI(object):
     def addShaderPreset(self):
         """Save the current shader attributes to the settings."""
         self.saveCurrentShader(uncheck=False)
-        text, ok = QtGui.QInputDialog.getText(self.centralwidget, 'Preset Name', 'Enter the name of the preset:')
+        text, ok = QtWidgets.QInputDialog.getText(self.centralwidget, 'Preset Name', 'Enter the name of the preset:')
         if ok and text:
             preset = text
             shaderAttr = self.settings.setValue(self.mode + '/' + preset, self._currentShaderButton.shader.shaderAttr)
@@ -752,7 +753,7 @@ class BakeryUI(object):
             self.saveCurrentShader(uncheck=False)
             b.initstats.emit('bake')
             self.Bakery.sendBatch()
-            effect = QtGui.QGraphicsColorizeEffect(self.interface['finalbuttons']['bake'])
+            effect = QtWidgets.QGraphicsColorizeEffect(self.interface['finalbuttons']['bake'])
             self.interface['finalbuttons']['bake'].setGraphicsEffect(effect)
             ag = QtCore.QSequentialAnimationGroup(self.interface['finalbuttons']['bake'])
             anim = fade(effect, 1000, 'color', QtGui.QColor(0, 255, 0, 200), QtGui.QColor(0, 255, 0, 0))
@@ -798,13 +799,13 @@ class BakeryUI(object):
 
     def retranslateUi(self):
         """Change some text in the UI."""
-        self.window.setWindowTitle(QtGui.QApplication.translate("MainWindow", "The Bakery", None, QtGui.QApplication.UnicodeUTF8))
-        self.interface['maintabs']['occlusion'].setText(QtGui.QApplication.translate("MainWindow", "Occlusion", None, QtGui.QApplication.UnicodeUTF8))
-        self.interface['maintabs']['thickness'].setText(QtGui.QApplication.translate("MainWindow", "Thickness", None, QtGui.QApplication.UnicodeUTF8))
-        self.interface['maintabs']['dirt'].setText(QtGui.QApplication.translate("MainWindow", "Dirt", None, QtGui.QApplication.UnicodeUTF8))
-        self.interface['maintabs']['rgb'].setText(QtGui.QApplication.translate("MainWindow", "Rgb", None, QtGui.QApplication.UnicodeUTF8))
-        self.interface['finalbuttons']['preview'].setText(QtGui.QApplication.translate("MainWindow", "Preview", None, QtGui.QApplication.UnicodeUTF8))
-        self.interface['finalbuttons']['bake'].setText(QtGui.QApplication.translate("MainWindow", "Bake", None, QtGui.QApplication.UnicodeUTF8))
+        self.window.setWindowTitle(QtWidgets.QApplication.translate("MainWindow", "The Bakery", None))
+        self.interface['maintabs']['occlusion'].setText(QtWidgets.QApplication.translate("MainWindow", "Occlusion", None))
+        self.interface['maintabs']['thickness'].setText(QtWidgets.QApplication.translate("MainWindow", "Thickness", None))
+        self.interface['maintabs']['dirt'].setText(QtWidgets.QApplication.translate("MainWindow", "Dirt", None))
+        self.interface['maintabs']['rgb'].setText(QtWidgets.QApplication.translate("MainWindow", "Rgb", None))
+        self.interface['finalbuttons']['preview'].setText(QtWidgets.QApplication.translate("MainWindow", "Preview", None))
+        self.interface['finalbuttons']['bake'].setText(QtWidgets.QApplication.translate("MainWindow", "Bake", None))
         self.interface['finalbuttons']['interactivebake'].setText(u"\u21CB")
 
     def createTooltips(self):
@@ -866,7 +867,7 @@ class BakeryUI(object):
 
     def closeEvent(self, event):
         self.saveCurrentShader()
-        QtGui.QMainWindow.closeEvent(self.window, event)
+        QtWidgets.QMainWindow.closeEvent(self.window, event)
 
 
 def fade(target, duration, propertyName='opacity', start=0, end=1, easingCurve=QtCore.QEasingCurve.OutCirc):
@@ -885,9 +886,14 @@ def fade(target, duration, propertyName='opacity', start=0, end=1, easingCurve=Q
     an.setEasingCurve(easingCurve)
     return an
 
+def get_maya_window():
+        """Get the maya main window as a QMainWindow instance"""
+        ptr = mui.MQtUtil.mainWindow()
+        return shiboken2.wrapInstance(long(ptr), QtWidgets.QWidget)
+
 
 def launch_ui():
-    MainWindow = qtwrapper.get_maya_window()
+    MainWindow = get_maya_window()
     Bakery = b.Bakery()
     gui = BakeryUI(MainWindow, Bakery)
     gui.setupUi()
