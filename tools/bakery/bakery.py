@@ -5,12 +5,12 @@ import logging
 import itertools
 import maya.mel as mel
 import maya.cmds as cmds
-import lib.lib as tdLib
-import lib.stats as tdStats
+import tempfile
+import lib.libmaya as libmaya
+import lib.libmaya as libpython
 import lib.mayabatch as mayabatch
 
 logger = logging.getLogger(__name__)
-initstats = tdStats.Stats('TheBakery', 'regnareb', '1')
 
 
 class NoAssignation(ValueError):
@@ -21,10 +21,10 @@ class Shader(object):
     def __init__(self, shaderName, mode, renderAttr, shaderAttr):
         self.mode = mode
         self.name = shaderName
-        self.shadingGroup = tdLib.getSGsFromMaterial(shaderName)[0]
+        self.shadingGroup = libmaya.getSGsFromMaterial(shaderName)[0]
         self.renderAttr = renderAttr
         self.shaderAttr = shaderAttr
-        self.assignation = tdLib.getShaderAssignation(shaderName)
+        self.assignation = libmaya.getShaderAssignation(shaderName)
         self.shapes = self.getShapes()
         self.udims = self.getAllUDIMs()
         self.udimsTotal = copy.copy(self.udims)
@@ -41,7 +41,7 @@ class Shader(object):
     def getShapes(self):
         shapes = cmds.ls(self.assignation, shapes=True, long=True)
         assign = list(set([i.split('.')[0] for i in self.assignation])) # CLEAN THIS MESS
-        assign = list(tdLib.flatten([tdLib.getShapes(i) for i in assign])) # CLEAN THIS MESS
+        assign = list(libpython.flatten([libmaya.getShapes(i) for i in assign])) # CLEAN THIS MESS
         shapes = shapes + assign
         if not shapes:
             raise NoAssignation('No shapes assigned to that shader')
@@ -55,7 +55,7 @@ class Shader(object):
             else:
                 faceList = cmds.ls(i, flatten=True)
             for face in faceList:
-                udim.append(tdLib.getUDIM(face))
+                udim.append(libmaya.getUDIM(face))
 
         udim.sort()
         udim = list(k for k,_ in itertools.groupby(udim))
@@ -81,6 +81,7 @@ class Shader(object):
 
 class Bakery(object):
     def __init__(self):
+        super(Bakery, self).__init__()
         self.project = ''
         self.result = []
         self.toBake = []
@@ -91,7 +92,7 @@ class Bakery(object):
                            'tbBilinearFilter': 0,
                            'tbEdgeDilation': 0,
                            'tbUvRange': 2,
-                           'tbDirectory': '/tmp/'
+                           'tbDirectory': tempfile.gettempdir()
                            }
         self.shaderAttr = {'OCC': {'minSamples': 128,
                                    'maxSamples': 256,
@@ -130,15 +131,25 @@ class Bakery(object):
         self.prepared = False
         self.scenePath = cmds.file(query=True, sceneName=True)
         try:
-            tdLib.loadPlugin('Turtle')
+            libmaya.loadPlugin('Turtle')
             self.turtle = True
         except RuntimeError:
             self.turtle = False
 
+    def reloadalldirtyfiles(self):
+        self.create_filenodes()
+        for f in cmds.ls(type="file"):
+            print(int(self.shaders[0].shaderAttr['maxDistance']))
+            # if cmds.getAttr(f + '.uvTileProxyDirty'):
+            cmd = "cmds.setAttr('{}.fileTextureName', 'C:/Users/regnareb/Documents/maya/projects/default/spread_{}.exr', type='string')".format(f, str(self.shaders[0].shaderAttr['maxDistance']).replace('.', ''))
+            print(cmd)
+            cmds.evalDeferred(cmd)
+            cmds.evalDeferred("cmds.ogs(regenerateUVTilePreview='{}')".format(f))
+
     def addShaders(self, mode):
         shaders = []
         selection = cmds.ls(sl=True, geometry=True, transforms=True)
-        shaderList = [tdLib.getMaterialFromSG(sg) for sublist in [tdLib.getSGsFromShape(shape) for shape in selection] for sg in sublist]
+        shaderList = [libmaya.getMaterialFromSG(sg) for sublist in [libmaya.getSGsFromShape(shape) for shape in selection] for sg in sublist]
         shaderList += cmds.ls(sl=True, materials=True)
         shaderList = list(set(shaderList))
         for shaderName in shaderList:
@@ -162,7 +173,7 @@ class Bakery(object):
     def constructTurtleCommand(self, shader, udim, filename, forcePath=None, dividor=1):
         directory = shader.texturePath
         if forcePath:
-            directory = tdLib.normpath(forcePath)
+            directory = libpython.normpath(forcePath)
         resolution = int(shader.renderAttr['resolution'] / dividor)
         alpha = shader.renderAttr['alpha']
         merge = shader.renderAttr['merge']
@@ -208,7 +219,7 @@ class Bakery(object):
         old = self.prepared
         self.prepared = False
         cmds.savePrefs(general=True)
-        mayabatch.Mayabatch(objectRecorded=self, exportList=self.mergeExportList(), mailEnabled=self.mail(), modulesExtra=True, stats=initstats)
+        mayabatch.Mayabatch(objectRecorded=self, exportList=self.mergeExportList(), mailEnabled=self.mail(), modulesExtra=True)
         self.prepared = old
 
     def createShaders(self):
@@ -229,7 +240,7 @@ class Bakery(object):
             # DIRT
             nodes = cmds.file('path_to_your_file_shader.ma', reference=True, returnNewNodes=True, namespace='DIRT')
             self.dirt = cmds.ls(nodes, type='surfaceShader')[0]
-            self.dirtSG = tdLib.getFirstItem(cmds.listConnections(self.dirt + '.outColor', source=False))
+            self.dirtSG = libpython.getFirstItem(cmds.listConnections(self.dirt + '.outColor', source=False))
             if not self.dirtSG:
                 self.dirtSG = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=self.dirt + 'SG')
                 cmds.connectAttr(self.dirt + '.outColor', self.dirtSG + '.surfaceShader', force=True)
@@ -300,13 +311,13 @@ class Bakery(object):
     def setExport(self, value):
         self.export = value
 
-    @tdLib.reSelect
+    @libmaya.reSelect
     def setPreset(self, preset):
         # self._preset = preset
         try:
             cmds.select('TurtleRenderOptions')
             path = os.path.join(os.path.split(__file__)[0], 'presets', '{}.mel'.format(preset))
-            path = tdLib.normpath(path)
+            path = libpython.normpath(path)
             mel.eval('source "{}"'.format(path))
         except ValueError:
             pass
@@ -330,26 +341,26 @@ class Bakery(object):
         cmds.undo()
 
     def render(self, shader):
-        currentCam = tdLib.getActiveCamera() or 'persp'
+        currentCam = libmaya.getActiveCamera() or 'persp'
         currentTime = cmds.currentTime(query=True)
         width = cmds.getAttr('defaultResolution.width')
         height = cmds.getAttr('defaultResolution.height')
         cmd = 'RenderViewWindow;ilrRenderCmd -camera "%s" -frame %s -resolution %s %s' % (currentCam, currentTime, width, height)
         self.bakeShader(shader, cmd)
 
-    @tdLib.reSelect
+    @libmaya.reSelect
     def preview(self, shaders):
         for shader in shaders[::-1]:
             try:
                 for udim in shader.udims:
                     filename = '{}.10{}{}.tga'.format(shader.fileName, udim[1], udim[0]+1)
-                    cmd = self.constructTurtleCommand(shader, udim, filename, '/tmp', self.dividor)
+                    cmd = self.constructTurtleCommand(shader, udim, filename, tempfile.gettempdir(), self.dividor)
                     logger.debug(cmd)
                     self.bakeShader(shader, cmd)
                 pattern = '-directory \"(.*?)\" -fileName \"(.*?)\"'
                 reg = re.search(pattern, cmd)
-                path = tdLib.normpath(os.path.join(reg.group(1), reg.group(2)))
-                nodeFile, placement = tdLib.createFileNode()
+                path = libpython.normpath(os.path.join(reg.group(1), reg.group(2)))
+                nodeFile, placement = libmaya.createFileNode()
                 cmds.setAttr('{}.fileTextureName'.format(nodeFile), path, type="string")
                 cmds.setAttr('{}.uvTilingMode'.format(nodeFile), 3)
                 cmds.setAttr('{}.uvTileProxyGenerate'.format(nodeFile), 1)
@@ -376,7 +387,7 @@ class Bakery(object):
         It will only bake the shaders in self.toBake if there is any (if a shader is selected in the UI for example),
         otherwise it will bake all the shaders added.
         """
-        tdLib.loadPlugin('Turtle')
+        libmaya.loadPlugin('Turtle')
         for shader in self.toBake or self.shaders:
             print 'SHADER NAME: ', shader
             print 'SHADER MODE: ', shader.mode
@@ -388,11 +399,9 @@ class Bakery(object):
             for udim in shader.udims:
                 filename = '{}.10{}{}.tga'.format(shader.fileName, udim[1], udim[0]+1)
                 cmd = self.constructTurtleCommand(shader, udim, filename)
-                tdLib.createDir(shader.texturePath) # Create directory?
+                libpython.createDir(shader.texturePath) # Create directory?
                 self.bakeShader(shader, cmd)
-                fullpath = tdLib.normpath(os.path.join(shader.texturePath, filename))
+                fullpath = libpython.normpath(os.path.join(shader.texturePath, filename))
                 self.result.append('<a href="file://{0}" {1}>{0}</a> - <a href="rvlink://{0}" {1}>Open in RV</a>'.format(fullpath, 'style="text-decoration: none"'))
 
         print '<br />'.join(self.result) # This is used by the Mayabatch lib to send the result by mail.
-
-

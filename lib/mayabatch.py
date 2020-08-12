@@ -23,12 +23,13 @@ import uuid
 import copy
 import atexit
 import logging
+import tempfile
 import threading
 import subprocess
 import maya.cmds as cmds
-import tdLib
-import tdStats
-import tdMail
+import lib.stats as tdStats
+import lib.libmaya as libmaya
+import lib.libpython as libpython
 logger = logging.getLogger(__name__)
 
 initstats = tdStats.Stats('Mayabatch', 'regnareb', '8')
@@ -51,7 +52,7 @@ class Mayabatch(threading.Thread):
         self.formatStats(stats)
         self.totalTime      = self.tdStats.emit('total', True)
         self._stop          = threading.Event()
-        self.tmp        = '/tmp/'
+        self.tmp            = tempfile.gettempdir()
         atexit.register(self.stop)
         self.saveState()
         # self.setDaemon(True)
@@ -104,12 +105,12 @@ class Mayabatch(threading.Thread):
 
     def saveState(self):
         self.saveTime = self.tdStats.emit('save', True)
-        activeViewport = tdLib.getActiveViewport()
+        activeViewport = libmaya.getActiveViewport()
         if self.exportList == False:
             # Do not export, use the original scene
             logger.debug('Use original scene.')
             self.pathScene = cmds.file(sceneName=True, query=True)
-            self.pathPickle = tdLib.formatPath(self.uuid + '.pickle', self.tmp)
+            self.pathPickle = libpython.formatPath(self.uuid + '.pickle', self.tmp)
         else:
             if activeViewport and not self.exportList:
                 isolateSets = cmds.isolateSelect(activeViewport, viewObjects=True, query=True)
@@ -117,9 +118,9 @@ class Mayabatch(threading.Thread):
                     # remove mskMaterial and tmpObjFinal when baking is fixed
                     self.exportList = cmds.sets(isolateSets, query=True) + cmds.ls(type='textureBakeSet') + cmds.ls('mskMaterial*') + cmds.ls('tmpObjFinal_outPlaceHolderShape')
             logger.debug('Export {}'.format(self.exportList))
-            self.pathScene = tdLib.export(self.exportList, path=self.tmp, suffix=self.uuid) # If the export list is empty, it will export everything
-            self.pathPickle = tdLib.replaceExtension(self.pathScene, '.pickle')
-        tdLib.pickleObject(self.pathPickle, self.objectRecorded)
+            self.pathScene = libmaya.export(self.exportList, path=self.tmp, suffix=self.uuid) # If the export list is empty, it will export everything
+            self.pathPickle = libpython.replaceExtension(self.pathScene, '.pickle')
+        libpython.pickleObject(self.pathPickle, self.objectRecorded)
         self.saveTime.stop()
 
     def formatStats(self, stats):
@@ -161,7 +162,8 @@ class Mayabatch(threading.Thread):
             subject += ': Success'
 
         if self.mailOnlyCrash and self.exitcode !=0 or not self.mailOnlyCrash:
-            tdMail.sendMail('noreply@yourstudio.com', [destination], subject, message)
+            # tdMail.sendMail('noreply@yourstudio.com', [destination], subject, message)
+            pass
 
     def getEnvironment(self):
         environment = os.environ.copy()
@@ -178,18 +180,18 @@ class Mayabatch(threading.Thread):
 
 
 def mayabatchExecution(pathScene, pathPickle, modulesExtra):
-    """This is what get executed in the mglmayabatch process"""
-    modulesExtra = tdLib.string2bool(modulesExtra, strict=False)
+    """This is what get executed in the mayabatch process"""
+    modulesExtra = libpython.string2bool(modulesExtra, strict=False)
     if isinstance(modulesExtra, basestring):
-        tdLib.loadPlugin(modulesExtra)
+        libmaya.loadPlugin(modulesExtra)
     t = time.time()
     pathScene = cmds.file(pathScene, open=True, force=True)
     openTime = time.time() - t
-    command = tdLib.unPickleObject(pathPickle)
+    command = libpython.unPickleObject(pathPickle)
     t = time.time()
     command.executeMayabatch()
     execTime = time.time() - t
-    print openTime, execTime
+    print(openTime, execTime)
 
 
 
@@ -202,5 +204,5 @@ class Monitor(object):
     """UI to check all the present and past jobs launched"""
     def __init__(self):
         for i in Mayabatch.instances:
-            print i
+            print(i)
         pass

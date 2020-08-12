@@ -6,7 +6,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 import shiboken2
 import maya.OpenMayaUI as mui
 import bakery as b
-import lib.tdLib as tdLib
+import lib.libpython as libpython
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +197,6 @@ class RowLayout(QtWidgets.QHBoxLayout):
 
 class BakeryUI(object):
     def __init__(self, MainWindow, Bakery):
-        b.initstats.emit('open')
         self.shaders = {}
         self.menubar = {}
         self.Bakery = Bakery
@@ -281,7 +280,7 @@ class BakeryUI(object):
     def createDockShaders(self):
         """Create the basic elements of the right part of the UI where the shader are displayed"""
         def savedockposition(area):
-            area = tdLib.camelCaseSeparator(str(area).split('.')[-1]).split(' ')[0]
+            area = libpython.camelCaseSeparator(str(area).split('.')[-1]).split(' ')[0]
             self.settings.setValue('DockPosition', area)
         self.interface['shaders']['groupbox'] = QtWidgets.QWidget(self.centralwidget)
         self.interface['shaders']['layout'] = QtWidgets.QVBoxLayout(self.centralwidget)
@@ -473,7 +472,7 @@ class BakeryUI(object):
             # add to layout
             for elem in self.attributesOrder[mode]:
                 self.interface['attributes']['layout'].addLayout(self.interface[mode][elem])
-                self.interface[mode][elem].setText([QtWidgets.QApplication.translate("MainWindow", tdLib.camelCaseSeparator(elem).title(), None)])
+                self.interface[mode][elem].setText([QtWidgets.QApplication.translate("MainWindow", libpython.camelCaseSeparator(elem).title(), None)])
 
         self.interface['attributes']['layout'].addItem(self.interface['attributes']['spacer'])
 
@@ -751,7 +750,6 @@ class BakeryUI(object):
         """Tell the engine to bake the shaders"""
         if self.Bakery.shaders:
             self.saveCurrentShader(uncheck=False)
-            b.initstats.emit('bake')
             self.Bakery.sendBatch()
             effect = QtWidgets.QGraphicsColorizeEffect(self.interface['finalbuttons']['bake'])
             self.interface['finalbuttons']['bake'].setGraphicsEffect(effect)
@@ -764,12 +762,10 @@ class BakeryUI(object):
     def preview(self):
         """Call a preview of the selected shader, or every shaders if none are selected."""
         self.saveCurrentShader(uncheck=False)
-        t = b.initstats.emit('preview', True)
         try:
             self.Bakery.preview([self._currentShaderButton.shader])
         except AttributeError:
             self.Bakery.preview(self.Bakery.shaders)
-        t.stop()
         self.resize()
 
     def bakeInteractive(self):
@@ -780,12 +776,10 @@ class BakeryUI(object):
     def render(self):
         """Do a preview render with the current camera instead of a usual bake. The result can be slightly different than the final bake"""
         self.saveCurrentShader(uncheck=False)
-        t = b.initstats.emit('render', True)
         try:
             self.Bakery.render(self._currentShaderButton.shader)
         except AttributeError:
             self.Bakery.render()
-        t.stop()
 
     def resize(self):
         """Call a render, obsolete since this seems to be managed by the engine automatically."""
