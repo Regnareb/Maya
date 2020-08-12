@@ -26,19 +26,16 @@ import logging
 import threading
 import subprocess
 import maya.cmds as cmds
-import tdLib
-import tdStats
-import tdMail
+import libmaya as tdLib
 logger = logging.getLogger(__name__)
 
-initstats = tdStats.Stats('Mayabatch', 'regnareb', '8')
 
 
 
 class Mayabatch(threading.Thread):
     instances = []
 
-    def __init__(self, objectRecorded='', exportList=[], modulesExtra=False, block=False, mailEnabled=False, mailOnlyCrash=False, stats=None):
+    def __init__(self, objectRecorded='', exportList=[], modulesExtra=False, block=False, mailEnabled=False, mailOnlyCrash=False):
         super(Mayabatch, self).__init__()
         Mayabatch.instances.append(self)
         self.__initialized  = True
@@ -48,8 +45,6 @@ class Mayabatch(threading.Thread):
         self.modulesExtra   = modulesExtra
         self.mailEnabled    = mailEnabled
         self.mailOnlyCrash  = mailOnlyCrash
-        self.formatStats(stats)
-        self.totalTime      = self.tdStats.emit('total', True)
         self._stop          = threading.Event()
         self.tmp        = '/tmp/'
         atexit.register(self.stop)
@@ -84,7 +79,6 @@ class Mayabatch(threading.Thread):
             else:
                 self.tdStats.emit('crash')
         self.returnSignal()
-        self.getTimers()
         if self.mailEnabled: self.sendMail()
         self.stop()
 
@@ -103,7 +97,7 @@ class Mayabatch(threading.Thread):
             logger.info('%s' % (self.result))
 
     def saveState(self):
-        self.saveTime = self.tdStats.emit('save', True)
+
         activeViewport = tdLib.getActiveViewport()
         if self.exportList == False:
             # Do not export, use the original scene
@@ -120,30 +114,6 @@ class Mayabatch(threading.Thread):
             self.pathScene = tdLib.export(self.exportList, path=self.tmp, suffix=self.uuid) # If the export list is empty, it will export everything
             self.pathPickle = tdLib.replaceExtension(self.pathScene, '.pickle')
         tdLib.pickleObject(self.pathPickle, self.objectRecorded)
-        self.saveTime.stop()
-
-    def formatStats(self, stats):
-        '''Concatenate the stats infos or just use use the mayabatch one if none are specified in the main tool.'''
-        if stats:
-            self.tdStats = copy.deepcopy(stats)
-            self.tdStats.params['tool'] = '|'.join([self.tdStats.params['tool'], initstats.params['tool']])
-            self.tdStats.params['author'] = '|'.join([self.tdStats.params['author'], initstats.params['author']])
-            self.tdStats.params['version'] = '|'.join([self.tdStats.params['version'], initstats.params['version']])
-        else:
-            self.tdStats = initstats
-        self.tdStats.createSession()
-
-    def getTimers(self):
-        try:
-            openTime, execTime = self.out.splitlines()[-1].split(' ')
-            t = self.tdStats.emit('open', True)
-            openTime = t.stop(openTime)
-            t = self.tdStats.emit('exec', True)
-            execTime = t.stop(execTime)
-        except (IndexError, ValueError):
-            openTime, execTime = None, None
-        self.totalTime.stop()
-        self.timers = [self.totalTime.elapsed, self.saveTime.elapsed, openTime, execTime]
 
     def sendMail(self):
         user        = os.environ['USER']
@@ -161,7 +131,9 @@ class Mayabatch(threading.Thread):
             subject += ': Success'
 
         if self.mailOnlyCrash and self.exitcode !=0 or not self.mailOnlyCrash:
-            tdMail.sendMail('noreply@yourstudio.com', [destination], subject, message)
+            # Send mail
+            # tdMail.sendMail('noreply@yourstudio.com', [destination], subject, message)
+            pass
 
     def getEnvironment(self):
         environment = os.environ.copy()
@@ -178,7 +150,7 @@ class Mayabatch(threading.Thread):
 
 
 def mayabatchExecution(pathScene, pathPickle, modulesExtra):
-    """This is what get executed in the mglmayabatch process"""
+    """This is what get executed in the mayabatch process"""
     modulesExtra = tdLib.string2bool(modulesExtra, strict=False)
     if isinstance(modulesExtra, basestring):
         tdLib.loadPlugin(modulesExtra)
@@ -189,7 +161,7 @@ def mayabatchExecution(pathScene, pathPickle, modulesExtra):
     t = time.time()
     command.executeMayabatch()
     execTime = time.time() - t
-    print openTime, execTime
+    print(openTime, execTime)
 
 
 
@@ -202,5 +174,5 @@ class Monitor(object):
     """UI to check all the present and past jobs launched"""
     def __init__(self):
         for i in Mayabatch.instances:
-            print i
+            print(i)
         pass
