@@ -37,6 +37,7 @@ def getdefaultpreferences():
 import mgmaya.mgQt as mgQt
 MainWindow = mgQt.getMayaMainWindow()
 MainWindow.setStyleSheet('background-image:url(path/glitchy2.png)')
+MainWindow.setWindowOpacity(0.7)
 
 
 import profiler
@@ -48,8 +49,3 @@ profiler.PyStop("/tmp/prof", False)
 # # User Can Manage Levels Through The Maya Logging Menu - This is how you enable it
 from pymel.tools import loggingControl
 loggingControl.initMenu()
-
-
-
-
-
