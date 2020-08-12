@@ -32,14 +32,13 @@ import lib.libmaya as libmaya
 import lib.libpython as libpython
 logger = logging.getLogger(__name__)
 
-initstats = tdStats.Stats('Mayabatch', 'regnareb', '8')
 
 
 
 class Mayabatch(threading.Thread):
     instances = []
 
-    def __init__(self, objectRecorded='', exportList=[], modulesExtra=False, block=False, mailEnabled=False, mailOnlyCrash=False, stats=None):
+    def __init__(self, objectRecorded='', exportList=[], modulesExtra=False, block=False, mailEnabled=False, mailOnlyCrash=False):
         super(Mayabatch, self).__init__()
         Mayabatch.instances.append(self)
         self.__initialized  = True
@@ -49,8 +48,6 @@ class Mayabatch(threading.Thread):
         self.modulesExtra   = modulesExtra
         self.mailEnabled    = mailEnabled
         self.mailOnlyCrash  = mailOnlyCrash
-        self.formatStats(stats)
-        self.totalTime      = self.tdStats.emit('total', True)
         self._stop          = threading.Event()
         self.tmp            = tempfile.gettempdir()
         atexit.register(self.stop)
@@ -85,7 +82,6 @@ class Mayabatch(threading.Thread):
             else:
                 self.tdStats.emit('crash')
         self.returnSignal()
-        self.getTimers()
         if self.mailEnabled: self.sendMail()
         self.stop()
 
