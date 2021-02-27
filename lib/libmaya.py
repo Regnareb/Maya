@@ -157,21 +157,29 @@ def getNextFreeMultiIndex(nodeattr, start=0, max=10000000):
 
 
 def isVisible(node):
-    visible = False
-    try:
+    """Traverse all and parent hierarchy to determine if a node is visible or not. It does not take into account animation keys"""
+    if cmds.attributeQuery('visibility', node=node, exists=True):
         visible = cmds.getAttr(node + '.visibility')
+    else:
+        return False  # The node is not a DAG node, thus not "visible"
+    if cmds.attributeQuery('intermediateObject', node=node, exists=True):
         visible = visible and not cmds.getAttr(node + '.intermediateObject')
-    except ValueError:
-        pass
-    try:
-        visible = visible and cmds.getAttr(node + '.overrideVisibility')
-    except ValueError:
-        pass
+    if cmds.attributeQuery('overrideEnabled', node=node, exists=True) and cmds.attributeQuery('overrideVisibility', node=node, exists=True):
+        if cmds.getAttr(node + '.overrideEnabled'):
+            visible = visible and cmds.getAttr(node + '.overrideVisibility')
     if visible:
-        parents = cmds.listRelatives(node, parent=True, path=True)
-        if parents:
-            visible = isVisible(libpython.getFirstItem(parents))
+        parent = cmds.listRelatives(node, parent=True, path=True)
+        if parent:
+            visible = visible and isVisible(libpython.getFirstItem(parent))
     return visible
+
+
+def parent(parent, child, *args, **kwargs):
+    """Prevent the RuntimeError when it's already a parent to the child, or trying to parent a referenced node"""
+    try:
+        cmds.parent(parent, child, *args, **kwargs)
+    except RuntimeError:
+        pass
 
 
 def longNameOf(node):
@@ -550,7 +558,6 @@ def loadTurtle():
         cmds.connectAttr(turtleNodes['ilrBakeLayer']+'.index', turtleNodes['ilrBakeLayerManager']+'.bakeLayerId[0]')
     except RuntimeError:
         logger.debug('Turtle nodes already connected.')
-        
     return turtleNodes
 
 
