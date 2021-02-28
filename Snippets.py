@@ -34,8 +34,8 @@ def getdefaultpreferences():
     print version + '-' + platform + '-optionvars.json'
 
 
-import mgmaya.mgQt as mgQt
-MainWindow = mgQt.getMayaMainWindow()
+import mayaQt
+MainWindow = mayaQt.getMayaMainWindow()
 MainWindow.setStyleSheet('background-image:url(path/glitchy2.png)')
 MainWindow.setWindowOpacity(0.7)
 
