@@ -157,7 +157,9 @@ def getNextFreeMultiIndex(nodeattr, start=0, max=10000000):
 
 
 def isVisible(node):
-    """Traverse all and parent hierarchy to determine if a node is visible or not. It does not take into account animation keys"""
+    """Traverse all and parent hierarchy to determine if a node is visible or not. It does not take into account animation keys
+    To check if an intermediate object is visible you need to pass the shape as argument.
+    """
     if cmds.attributeQuery('visibility', node=node, exists=True):
         visible = cmds.getAttr(node + '.visibility')
     else:
