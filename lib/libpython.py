@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import time
+import math
 import errno
 import pickle
 import inspect
@@ -102,7 +103,7 @@ def createDir(path):
 def formatPath(fileName, path='', prefix='', suffix=''):
     """ Create a complete path with a filename, a path and prefixes/suffixes
     /path/prefix_filename_suffix.ext"""
-    path = os.path.join(path, "") # Delete ?
+    path = os.path.join(path, "")  # Delete ?
     if suffix:
         suffix = '_' + suffix
     if prefix:
@@ -161,7 +162,7 @@ def humansize(nbytes):
     if nbytes == 0:
         return '0 B'
     i = 0
-    while nbytes >= 1024 and i < len(suffixes)-1:
+    while nbytes >= 1024 and i < len(suffixes) - 1:
         nbytes /= 1024.
         i += 1
     f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
@@ -265,7 +266,7 @@ def elapsedTime(f):
     @functools.wraps(f)
     def elapsed(*args, **kwargs):
         start = time.time()
-        result =  f(*args, **kwargs)
+        result = f(*args, **kwargs)
         elapsed = time.time() - start
         logger.debug(elapsed)
         return result
@@ -276,14 +277,14 @@ def restoreEnvironment(f):
     @functools.wraps(f)
     def func(*args, **kwargs):
         old = os.environ.copy()
-        result =  f(*args, **kwargs)
+        result = f(*args, **kwargs)
         os.environ.update(old)
         return result
     return func
 
 
 def decorateall(decorator):
-    #Decorate all methods of the class with the decorator passed as argument (Python 3)
+    # Decorate all methods of the class with the decorator passed as argument (Python 3)
     def decorate(cls):
         for name, fn in inspect.getmembers(cls, inspect.isroutine):
             if name != '__new__':

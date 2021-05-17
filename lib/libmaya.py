@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 # cmds.getAttr('node.attribute')  # If several nodes have the same name, it will return a list instead of only one element or  crashing
 
 
-
 def getNewNodesCreated(_function):
     """ Return the new nodes created after the execution of a function """
     before = cmds.ls(long=True)
@@ -209,7 +208,7 @@ def multiParentConstraint(nodes=None, maintainOffset=True, weight=1, skipTransla
     cmds.select(clear=True)
     result = {}
     for node in nodes:
-       result[node] = cmds.parentConstraint(source, node, maintainOffset=maintainOffset, weight=weight, skipTranslate=skipTranslate, skipRotate=skipRotate)
+        result[node] = cmds.parentConstraint(source, node, maintainOffset=maintainOffset, weight=weight, skipTranslate=skipTranslate, skipRotate=skipRotate)
     return result
 
 
@@ -556,8 +555,8 @@ def loadTurtle():
         if not cmds.objExists(nodeName) or nodeType != cmds.nodeType(nodeName):
             turtleNodes[nodeType] = cmds.createNode(nodeType, name=nodeName)
     try:
-        cmds.connectAttr(turtleNodes['ilrOptionsNode']+'.message', turtleNodes['ilrBakeLayer']+'.renderOptions')
-        cmds.connectAttr(turtleNodes['ilrBakeLayer']+'.index', turtleNodes['ilrBakeLayerManager']+'.bakeLayerId[0]')
+        cmds.connectAttr(turtleNodes['ilrOptionsNode'] + '.message', turtleNodes['ilrBakeLayer'] + '.renderOptions')
+        cmds.connectAttr(turtleNodes['ilrBakeLayer'] + '.index', turtleNodes['ilrBakeLayerManager'] + '.bakeLayerId[0]')
     except RuntimeError:
         logger.debug('Turtle nodes already connected.')
     return turtleNodes
@@ -660,7 +659,6 @@ def reSelect(method):
 
 
 class ReselectContext(object):
-
     def __enter__(self):
         self.selectionList = cmds.ls(sl=True)
 
@@ -675,11 +673,11 @@ class ReselectContext(object):
 def undoChunk(method):
     """A decorator that create a undo chunk so that everything done in the method will be undone with only one Undo"""
     @functools.wraps(method)
-    def undoed(*args, **kw):
+    def undoed(*args, **kwargs):
         err = None
         try:
             cmds.undoInfo(openChunk=True)
-            result = method(*args, **kw)
+            result = method(*args, **kwargs)
         except Exception as err:
             pass
         finally:
