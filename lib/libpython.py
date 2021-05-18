@@ -74,6 +74,12 @@ def flatten(coll):
             yield i
 
 
+def natural_sort_key(iterable):
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(iterable, key=alphanum_key)
+
+
 def string2bool(string, strict=True):
     """Convert a string to its boolean value.
     The strict argument keep the string if neither True/False are found

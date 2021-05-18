@@ -248,6 +248,25 @@ def getEmptyGroups():
     return emptyGroups
 
 
+def disconnectAll(node, source=True, destination=True):
+    """Disconnect all connexions to/from a node. Set args source/destination to only disconnect input/outputs.
+    You can also pass the "node.attribute" to only disconnect that attribute.
+    """
+    if '.' in node:
+        conns = cmds.listConnections(node, plugs=True, connections=True) or []
+        pairs = zip(conns[1::2], conns[::2])
+    else:
+        pairs = []
+        if source:
+            conns = cmds.listConnections(node, plugs=True, connections=True, destination=False) or []
+            pairs.extend(zip(conns[1::2], conns[::2]))
+        if destination:
+            conns = cmds.listConnections(node, plugs=True, connections=True, source=False) or []
+            pairs.extend(zip(conns[::2], conns[1::2]))
+    for src, dest in pairs:
+        cmds.disconnectAttr(src, dest)
+
+
 def getAllAscendantConnections(nodes):
     ancestors = set()
     while nodes:
@@ -689,12 +708,23 @@ def undoChunk(method):
 
 
 class UndoContext(object):
+    def __init__(self, catch_exception=False, undo_at_exception=False):
+        self.catch_exception = catch_exception
+        self.undo_at_exception = undo_at_exception
 
     def __enter__(self):
         cmds.undoInfo(openChunk=True)
+        if self.undo_at_exception:
+            #  Trigger a command in case because it may undo an operation made by the user
+            # if the script raises an exception before any Maya operation is done
+            cmds.currentTime(cmds.currentTime(query=True))
 
-    def __exit__(self, *exc_info):
+    def __exit__(self, exception_type, exception_value, traceback):
         cmds.undoInfo(closeChunk=True)
+        if exception_type and self.undo_at_exception:
+            cmds.undo()
+        if self.catch_exception:
+            return True
 
 # with UndoContext():
 #     ... your code here....
