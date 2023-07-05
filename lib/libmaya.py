@@ -660,6 +660,18 @@ def getMayaGlobals(variable):
     return mel.eval('$dummy = ${}'.format(variable))
 
 
+def change_vray_channels(node, channel, value):
+    try:
+        channels = {"Smoke": '2', "Temperature": '1', "Fuel": '10', "Velocity.x": '4', "Velocity.y": '5', "Velocity.z": '6', "Red": '7', "Green": '8', "Blue": '9', "Viscosity": '22', "Wavelet": '14', "Wavelet.x": '19', "Wavelet.v": '20', "Wavelet.w": '21'};
+        channel_id = channels[channel]
+        attr = cmds.getAttr(node + '.usrchmap')
+        attr = re.sub('({},\w*;)'.format(channel_id), '', attr) + '{},{};'.format(channel_id, value)
+        cmds.setAttr(node + '.usrchmap', attr, type='string')
+    except KeyError:
+        logger.error("This channel name doesn't exists.")
+
+
+
 
 
 
