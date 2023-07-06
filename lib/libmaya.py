@@ -742,6 +742,16 @@ class UndoContext(object):
 #     ... your code here....
 
 
+@contextlib.contextmanager
+def lockRefenencedNodes():
+    try:
+        current = cmds.optionVar(query='refLockEditable')
+        cmds.optionVar(intValue=('refLockEditable', 1))
+        yield
+    finally:
+        cmds.optionVar(intValue=('refLockEditable', current))
+
+
 def keepNamespace(method):
     """A decorator that reselect the elements selected prior the execution of the method"""
     @functools.wraps(method)
